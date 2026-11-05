@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>CAE Agent — 连接中断</title>
+<style>
+  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif;
+         display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+  .box { text-align: center; max-width: 480px; }
+  h1 { font-size: 1.5rem; color: #f87171; }
+  p  { color: #94a3b8; line-height: 1.6; }
+  button { margin-top: 1.5rem; padding: 0.6rem 1.6rem; background: #2563eb; color: #fff;
+           border: none; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>⚠️ dsh 运行时已停止</h1>
+  <p>CAE Agent 后端（dsh）意外退出。请检查控制台日志后重启应用。</p>
+  <button onclick="location.reload()">重新连接</button>
+</div>
+</body>
+</html>

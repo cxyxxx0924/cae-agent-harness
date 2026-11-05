@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-app/
+out/
+*.local.yaml
+.env
+.env.local
+*.d3plot
+*.key
+*.hm
+*.gif
+*.pptx
+_*.tcl

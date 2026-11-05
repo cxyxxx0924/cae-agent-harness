@@ -1,0 +1,19 @@
+{
+  "name": "cae-agent-harness",
+  "version": "0.1.0",
+  "description": "CAE 气帘仿真 Agent — dsh + MCP + Electron",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "build:mcp": "pnpm --filter @cae/mcp-server run build",
+    "build:shell": "pnpm --filter @cae/electron-shell run build",
+    "dev": "pnpm --filter @cae/electron-shell run dev",
+    "dist:win": "pnpm --filter @cae/electron-shell run dist:win",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.5",
+    "typescript": "5.6.3"
+  }
+}

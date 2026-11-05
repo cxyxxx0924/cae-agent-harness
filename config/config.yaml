@@ -1,0 +1,47 @@
+# CAE Agent 全局配置
+# 复制此文件为 config.local.yaml 并填入实际路径和密钥（不提交到 Git）
+
+llm:
+  # 默认使用的 provider: deepseek | qwen | ollama
+  default: deepseek
+  # 按任务类型路由到不同模型
+  routing:
+    script_generation: deepseek   # TCL / keyword 脚本生成
+    workflow_planning: qwen        # 分区策略、工作流规划
+    local_fallback: ollama         # 离线/断网备用
+
+providers:
+  deepseek:
+    apiKey: ${DEEPSEEK_API_KEY}
+    baseURL: https://api.deepseek.com/v1
+    model: deepseek-coder
+
+  qwen:
+    apiKey: ${DASHSCOPE_API_KEY}
+    baseURL: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-max
+
+  ollama:
+    baseURL: http://localhost:11434
+    model: qwen2.5-coder:32b
+
+# Windows 可执行文件路径（在 Windows 机器上修改为实际安装路径）
+windows:
+  hmbatch: "C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hmbatch.exe"
+  hyperview: "C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hw.exe"
+  lsdyna: "C:\\LSTC\\ls971_s_R13.1_winx64_ifort131.exe"
+
+# 仿真工作目录
+workdir: "D:\\cae_projects\\airbag"
+
+# MCP Server 配置
+mcp:
+  servers:
+    - name: hypermesh
+      autoStart: true
+    # 预留：后续扩展
+    # - name: hyperview
+    # - name: lsdyna-diagnostics
+
+# 日志级别: debug | info | warn | error
+logLevel: info

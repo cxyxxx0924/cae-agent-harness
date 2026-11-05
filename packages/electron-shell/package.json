@@ -1,0 +1,62 @@
+{
+  "name": "@cae/electron-shell",
+  "version": "0.1.0",
+  "description": "Electron desktop shell for CAE Agent (wraps dsh web UI)",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh": "0.2.1-rc.5"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.29",
+    "electron": "32.2.5",
+    "electron-builder": "25.1.8",
+    "typescript": "5.6.3"
+  },
+  "build": {
+    "appId": "com.cae.agent",
+    "productName": "CAE Agent",
+    "copyright": "CAE Agent",
+    "directories": {
+      "output": "dist-app"
+    },
+    "files": [
+      "dist/**/*",
+      "resources/**/*"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "../../config",
+        "to": "config",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../../skills",
+        "to": "skills",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "../../packages/cae-mcp-server/dist",
+        "to": "mcp-server",
+        "filter": ["**/*"]
+      }
+    ]
+  }
+}

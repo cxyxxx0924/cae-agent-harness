@@ -1,0 +1,33 @@
+# 气帘仿真默认参数模板
+
+mesh:
+  elementSize: 3.0          # 默认网格尺寸 mm
+  minElementSize: 1.5       # 最小尺寸
+  maxElementSize: 8.0       # 最大尺寸
+  quality:
+    jacobianMin: 0.70       # Jacobian 最小值
+    aspectRatioMax: 5.0     # 宽高比最大值
+    skewMax: 60.0           # 歪斜角最大值 °
+    warpageMax: 15.0        # 翘曲最大值 °
+  maxRepairIterations: 3    # 质量修复最大迭代次数
+
+solver:
+  ncpu: 8
+  memory: "2gb"
+  terminationTime: 60.0     # 求解终止时间 ms
+  outputInterval: 1.0       # 结果输出间隔 ms
+
+airbag:
+  material:
+    density: 1.2e-9          # kg/mm³
+    youngModulus: 2.0e5      # MPa
+    poissonRatio: 0.3
+  inflation:
+    peakPressure: 0.3       # MPa
+    riseTime: 5.0           # ms
+
+report:
+  title: "气帘仿真分析报告"
+  company: "RCC China"
+  gifFrameInterval: 5       # GIF 关键帧间隔 ms
+  pptTemplate: null         # null 使用内置模板
