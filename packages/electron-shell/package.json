@@ -8,7 +8,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win --x64",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "dist:win": "node scripts/package-windows.cjs",
+    "dist:win:zip": "node scripts/package-windows.cjs --zip",
+    "dist:win:installer": "node scripts/package-windows.cjs --installer",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -32,34 +35,28 @@
       "resources/**/*"
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "icon": "resources/icon.ico"
+      "target": [
+        { "target": "zip", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "resources/icon.ico",
+      "signAndEditExecutable": false,
+      "artifactName": "CAE-Agent-${version}-Windows-x64.${ext}"
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "runAfterFinish": false,
+      "installerLanguages": ["zh_CN", "en_US"],
       "installerIcon": "resources/icon.ico",
-      "uninstallerIcon": "resources/icon.ico"
+      "uninstallerIcon": "resources/icon.ico",
+      "artifactName": "CAE-Agent-${version}-Windows-x64-Setup.${ext}"
     },
     "extraResources": [
       {
-        "from": "../cae-ui",
-        "to": "packages/cae-ui",
-        "filter": ["package.json", "index.js", "client.js"]
-      },
-      {
-        "from": "../../config",
-        "to": "config",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "../../skills",
-        "to": "skills",
-        "filter": ["**/*"]
-      },
-      {
-        "from": "../../packages/cae-mcp-server/dist",
-        "to": "mcp-server",
+        "from": "../../out/windows/runtime",
+        "to": "runtime",
         "filter": ["**/*"]
       }
     ]

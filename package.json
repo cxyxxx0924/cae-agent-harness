@@ -10,6 +10,8 @@
     "build:shell": "pnpm --filter @cae/electron-shell run build",
     "dev": "pnpm --filter @cae/electron-shell run dev",
     "dist:win": "pnpm --filter @cae/electron-shell run dist:win",
+    "dist:win:zip": "pnpm --filter @cae/electron-shell run dist:win:zip",
+    "dist:win:installer": "pnpm --filter @cae/electron-shell run dist:win:installer",
     "typecheck": "pnpm -r run typecheck"
   },
   "devDependencies": {

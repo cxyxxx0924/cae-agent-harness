@@ -234,7 +234,7 @@
       <div class="field">
         <label>API Key<span class="required">*</span></label>
         <div class="input-row">
-          <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+          <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
           <div class="status-icon" id="st-apiKey">—</div>
         </div>
         <div class="hint">DeepSeek / 通义千问 / 本地 Ollama（填 ollama 即可）的 API Key</div>
@@ -243,30 +243,31 @@
       <div class="field">
         <label>API Base URL</label>
         <div class="input-row">
-          <input type="text" id="llmBaseUrl" placeholder="留空使用 DeepSeek（https://api.deepseek.com）">
+          <input type="url" id="llmBaseUrl" placeholder="留空使用 DeepSeek（https://api.deepseek.com/v1）" spellcheck="false">
           <div class="status-icon" id="st-llmBaseUrl">—</div>
         </div>
         <div class="preset-row">
-          <button class="preset-btn" data-preset-url="https://api.deepseek.com">DeepSeek</button>
+          <button class="preset-btn" data-preset-url="https://api.deepseek.com/v1">DeepSeek</button>
           <button class="preset-btn" data-preset-url="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问</button>
           <button class="preset-btn" data-preset-url="http://localhost:11434/v1">Ollama (本地)</button>
         </div>
+        <div class="hint">填写 http:// 或 https:// 开头的接口网址；密钥请填写在上方 API Key 中。</div>
       </div>
 
       <div class="field">
         <label>模型 ID（LLM_MODEL）</label>
         <div class="input-row">
-          <input type="text" id="model" placeholder="deepseek-chat">
+          <input type="text" id="model" placeholder="deepseek-flash" spellcheck="false">
           <div class="status-icon" id="st-model">—</div>
         </div>
         <div class="preset-row">
-          <button class="preset-btn" data-preset-model="deepseek-chat">deepseek-chat</button>
-          <button class="preset-btn" data-preset-model="deepseek-reasoner">deepseek-reasoner (R1)</button>
+          <button class="preset-btn" data-preset-model="deepseek-flash">deepseek-flash</button>
+          <button class="preset-btn" data-preset-model="deepseek-v4-pro">deepseek-v4-pro</button>
           <button class="preset-btn" data-preset-model="qwen-max">qwen-max</button>
           <button class="preset-btn" data-preset-model="qwen-plus">qwen-plus</button>
           <button class="preset-btn" data-preset-model="gpt-4o">gpt-4o</button>
         </div>
-        <div class="hint">切换 Base URL 后同步修改此字段，留空则使用 deepseek-chat</div>
+        <div class="hint">切换 Base URL 后同步修改此字段，留空则使用 deepseek-flash；保存后将自动设为默认模型。</div>
       </div>
     </div>
 

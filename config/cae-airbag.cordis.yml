@@ -1,12 +1,33 @@
 - id: llm-deepseek
+  disabled: true
+
+- id: llm-pi-ai
   config:
-    baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com'
-    apiKeyEnv: DEEPSEEK_API_KEY
-    models:
-      - id: !!js process.env.LLM_MODEL || 'deepseek-chat'
-        name: !!js process.env.LLM_MODEL || 'DeepSeek Chat'
-        contextWindow: 65536
-        maxTokens: 8192
+    providers:
+      cae:
+        displayName: CAE
+        api: openai-completions
+        baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1'
+        apiKeyEnv: DEEPSEEK_API_KEY
+        reasoning: !!js >-
+          ['deepseek-flash', 'deepseek-v4-pro'].includes(process.env.LLM_MODEL || 'deepseek-flash')
+            ? 'high' : undefined
+        models:
+          - id: !!js process.env.LLM_MODEL || 'deepseek-flash'
+            name: !!js process.env.LLM_MODEL || 'DeepSeek Flash'
+            contextWindow: 65536
+            maxTokens: 8192
+            reasoningEfforts: !!js >-
+              ['deepseek-flash', 'deepseek-v4-pro'].includes(process.env.LLM_MODEL || 'deepseek-flash')
+                ? { off: null, low: 'low', high: 'high', max: 'max' } : undefined
+            compat: !!js >-
+              ['deepseek-flash', 'deepseek-v4-pro'].includes(process.env.LLM_MODEL || 'deepseek-flash')
+                ? { thinkingFormat: 'deepseek', supportsReasoningEffort: true } : undefined
+
+- id: agent-default-model
+  config:
+    provider: cae
+    model: !!js process.env.LLM_MODEL || 'deepseek-flash'
 
 - id: ui-plugin-manager
   disabled: true

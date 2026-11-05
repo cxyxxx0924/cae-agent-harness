@@ -1,11 +1,12 @@
 import { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog } from 'electron'
 import { ipcMain } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { resolve, join } from 'node:path'
+import { resolve, join, delimiter } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import http from 'node:http'
 import { loadSettings, saveSettings, isFirstRun, SIMULATION_FIELDS, parseSimulationSettings, type CaeSettings } from './store'
+import { parseModelSettings } from './model-settings'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const DSH_PORT          = Number(process.env.DSH_PORT ?? 3080)
@@ -16,12 +17,13 @@ const IS_PACKAGED       = app.isPackaged
 // ── Paths ──────────────────────────────────────────────────────────────────
 function resourcePath(...parts: string[]): string {
   return IS_PACKAGED
-    ? join(process.resourcesPath, ...parts)
+    ? join(process.resourcesPath, 'runtime', ...parts)
     : resolve(__dirname, '../../..', ...parts)
 }
 
 function dshBin(): string {
   const candidates = [
+    resourcePath('node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
     join(__dirname, '../../node_modules/@deepseek-ai/dsh/lib/bin.js'),
     join(__dirname, '../../../node_modules/@deepseek-ai/dsh/lib/bin.js'),
     resolve(__dirname, '../../../node_modules/.bin/dsh'),
@@ -102,6 +104,7 @@ function waitForDsh(proc: ChildProcess, timeoutMs: number): Promise<string> {
 }
 
 function spawnDsh(settings: CaeSettings): ChildProcess {
+  const modelSettings = parseModelSettings(settings)
   const bin     = dshBin()
   const profile = profilePath()
   const env: NodeJS.ProcessEnv = {
@@ -109,26 +112,37 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     ELECTRON_RUN_AS_NODE: '1',
     DSH_PORT:           String(DSH_PORT),
     DSH_NO_OPEN_BROWSER: '1',
-    // Inject settings from store, allowing env overrides to take precedence
-    DEEPSEEK_API_KEY:   settings.apiKey   || process.env.DEEPSEEK_API_KEY   || '',
-    LLM_BASE_URL:       settings.llmBaseUrl || process.env.LLM_BASE_URL     || '',
-    LLM_MODEL:          settings.model    || process.env.LLM_MODEL          || '',
+    // Saved desktop settings take precedence over the launch environment.
+    DEEPSEEK_API_KEY:   modelSettings.apiKey,
+    LLM_BASE_URL:       modelSettings.llmBaseUrl || process.env.LLM_BASE_URL || '',
+    LLM_MODEL:          modelSettings.model,
     CAE_HMBATCH:        settings.hmbatch,
     CAE_HYPERVIEW:      settings.hyperview,
     CAE_LSDYNA:         settings.lsdyna,
     CAE_WORKDIR:        settings.workdir,
     HYPERWORKS_HOME:    settings.hyperworksHome,
   }
+  const nodeExecutable = IS_PACKAGED ? resourcePath('node', 'node.exe') : 'node'
+  if (IS_PACKAGED) {
+    if (!existsSync(nodeExecutable)) throw new Error('应用缺少 Node.js 运行环境，请重新完整解压应用。')
+    const inheritedPath = Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? ''
+    for (const key of Object.keys(env)) {
+      if (key.toLowerCase() === 'path') delete env[key]
+    }
+    env.PATH = [resourcePath('node'), resourcePath('uv'), inheritedPath].join(delimiter)
+    env.UV_CACHE_DIR = join(app.getPath('userData'), 'uv-cache')
+  }
   // Remove empty-string entries to avoid overriding child-process defaults
   for (const key of Object.keys(env)) {
     if (env[key] === '' && !['CAE_HMBATCH', 'CAE_HYPERVIEW', 'CAE_LSDYNA', 'CAE_WORKDIR', 'HYPERWORKS_HOME'].includes(key)) delete env[key]
   }
-  const proc = spawn('node', [bin, 'web', '--patch', profile, '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT)], {
+  const proc = spawn(nodeExecutable, [bin, 'web', '--patch', profile, '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT)], {
     env,
     cwd: projectRoot(),
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
     shell: false,
+    windowsHide: true,
   })
   proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[dsh] ${d}`))
   proc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[dsh] ${d}`))
@@ -282,7 +296,7 @@ function registerIpc(): void {
   ipcMain.handle('settings:load', () => loadSettings())
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
-    saveSettings(raw as CaeSettings)
+    saveSettings(raw)
     // Close settings window, then restart dsh + reload main window
     settingsWindow?.webContents.send('settings:saved')
     settingsWindow?.close()
@@ -405,21 +419,24 @@ app.whenReady().then(async () => {
     })
   }
 
-  const settings = loadSettings()
-
-  // Guard: require API key before starting dsh
-  if (!settings.apiKey) {
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      title: 'CAE Agent — 缺少 API Key',
-      message: '尚未配置 API Key，无法启动 AI Agent。\n请在设置中填写后重试。',
-      buttons: ['打开设置', '退出'],
-    })
-    if (response === 1) { app.quit(); return }
-    await new Promise<void>(resolve => {
-      const win = openSettingsWindow()
-      win.on('closed', () => resolve())
-    })
+  while (true) {
+    try {
+      parseModelSettings(loadSettings())
+      break
+    } catch (error) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        title: 'CAE Agent — 模型配置无效',
+        message: error instanceof Error ? error.message : '请检查模型配置后重试。',
+        buttons: ['打开设置', '退出'],
+        cancelId: 1,
+      })
+      if (response === 1) { app.quit(); return }
+      await new Promise<void>(resolve => {
+        const win = openSettingsWindow()
+        win.on('closed', () => resolve())
+      })
+    }
   }
 
   try {

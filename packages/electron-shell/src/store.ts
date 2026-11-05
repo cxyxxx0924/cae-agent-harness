@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { DEFAULT_MODEL, parseModelSettings } from './model-settings'
 
 export interface CaeSettings {
   hmbatch: string
@@ -37,7 +38,7 @@ const DEFAULTS: CaeSettings = {
   hyperworksHome: 'C:\\Altair\\2023',
   apiKey: '',
   llmBaseUrl: '',
-  model: 'deepseek-chat',
+  model: DEFAULT_MODEL,
 }
 
 function storePath(): string {
@@ -56,8 +57,9 @@ export function loadSettings(): CaeSettings {
   return { ...DEFAULTS }
 }
 
-export function saveSettings(s: CaeSettings): void {
-  writeFileSync(storePath(), JSON.stringify(s, null, 2), 'utf8')
+export function saveSettings(raw: unknown): void {
+  const settings: CaeSettings = { ...parseModelSettings(raw), ...parseSimulationSettings(raw) }
+  writeFileSync(storePath(), JSON.stringify(settings, null, 2), 'utf8')
 }
 
 export function isFirstRun(): boolean {
