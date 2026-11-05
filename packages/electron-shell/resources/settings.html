@@ -252,6 +252,22 @@
           <button class="preset-btn" data-preset-url="http://localhost:11434/v1">Ollama (本地)</button>
         </div>
       </div>
+
+      <div class="field">
+        <label>模型 ID（LLM_MODEL）</label>
+        <div class="input-row">
+          <input type="text" id="model" placeholder="deepseek-chat">
+          <div class="status-icon" id="st-model">—</div>
+        </div>
+        <div class="preset-row">
+          <button class="preset-btn" data-preset-model="deepseek-chat">deepseek-chat</button>
+          <button class="preset-btn" data-preset-model="deepseek-reasoner">deepseek-reasoner (R1)</button>
+          <button class="preset-btn" data-preset-model="qwen-max">qwen-max</button>
+          <button class="preset-btn" data-preset-model="qwen-plus">qwen-plus</button>
+          <button class="preset-btn" data-preset-model="gpt-4o">gpt-4o</button>
+        </div>
+        <div class="hint">切换 Base URL 后同步修改此字段，留空则使用 deepseek-chat</div>
+      </div>
     </div>
 
     <!-- HyperWorks 路径 -->
@@ -352,6 +368,7 @@ async function init() {
   const s = await api.load()
   setVal('apiKey',        s.apiKey)
   setVal('llmBaseUrl',    s.llmBaseUrl)
+  setVal('model',         s.model)
   setVal('hyperworksHome',s.hyperworksHome)
   setVal('hmbatch',       s.hmbatch)
   setVal('hyperview',     s.hyperview)
@@ -405,6 +422,14 @@ document.querySelectorAll('[data-preset-url]').forEach(btn => {
   })
 })
 
+// ── Preset Model buttons ───────────────────────────────────────────────────
+document.querySelectorAll('[data-preset-model]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setVal('model', btn.getAttribute('data-preset-model'))
+    setSt('model', '—')
+  })
+})
+
 // ── Live check on input change ─────────────────────────────────────────────
 PATH_FIELDS.forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
@@ -431,6 +456,7 @@ document.getElementById('btnSave').addEventListener('click', async () => {
   const settings = {
     apiKey,
     llmBaseUrl:     val('llmBaseUrl'),
+    model:          val('model'),
     hyperworksHome: val('hyperworksHome'),
     hmbatch:        val('hmbatch'),
     hyperview:      val('hyperview'),

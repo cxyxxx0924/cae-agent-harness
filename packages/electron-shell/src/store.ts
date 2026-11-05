@@ -10,6 +10,7 @@ export interface CaeSettings {
   hyperworksHome: string
   apiKey: string
   llmBaseUrl: string
+  model: string
 }
 
 const DEFAULTS: CaeSettings = {
@@ -20,6 +21,7 @@ const DEFAULTS: CaeSettings = {
   hyperworksHome: 'C:\\Altair\\2023',
   apiKey: '',
   llmBaseUrl: '',
+  model: 'deepseek-chat',
 }
 
 function storePath(): string {

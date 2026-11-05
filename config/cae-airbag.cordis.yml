@@ -5,6 +5,7 @@
 #   DeepSeek  — DEEPSEEK_API_KEY=sk-...
 #   QWen      — LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  DEEPSEEK_API_KEY=<dashscope-key>
 #   Ollama    — LLM_BASE_URL=http://localhost:11434/v1  DEEPSEEK_API_KEY=ollama
+#   Model     — LLM_MODEL=deepseek-chat  (or qwen-max, deepseek-reasoner, gpt-4o …)
 
 # ── LLM ─────────────────────────────────────────────────────────────────────
 - id: llm-api
@@ -13,8 +14,8 @@
     baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com'
     apiKeyEnv: DEEPSEEK_API_KEY
     models:
-      - id: deepseek-chat
-        name: DeepSeek Chat
+      - id: !!js process.env.LLM_MODEL || 'deepseek-chat'
+        name: !!js process.env.LLM_MODEL || 'DeepSeek Chat'
         contextWindow: 65536
         maxTokens: 8192
       - id: deepseek-reasoner

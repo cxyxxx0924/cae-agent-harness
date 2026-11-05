@@ -76,6 +76,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     // Inject settings from store, allowing env overrides to take precedence
     DEEPSEEK_API_KEY:   settings.apiKey   || process.env.DEEPSEEK_API_KEY   || '',
     LLM_BASE_URL:       settings.llmBaseUrl || process.env.LLM_BASE_URL     || '',
+    LLM_MODEL:          settings.model    || process.env.LLM_MODEL          || '',
     CAE_HMBATCH:        settings.hmbatch  || process.env.CAE_HMBATCH        || '',
     CAE_HYPERVIEW:      settings.hyperview || process.env.CAE_HYPERVIEW     || '',
     CAE_LSDYNA:         settings.lsdyna   || process.env.CAE_LSDYNA         || '',
