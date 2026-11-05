@@ -21,9 +21,9 @@ function resourcePath(...parts: string[]): string {
 
 function dshBin(): string {
   const candidates = [
-    join(__dirname, '../../node_modules/@deepseek-ai/dsh/bin/dsh.js'),
-    join(__dirname, '../../../node_modules/@deepseek-ai/dsh/bin/dsh.js'),
-    resolve(__dirname, '../../../../node_modules/.bin/dsh'),
+    join(__dirname, '../../node_modules/@deepseek-ai/dsh/lib/bin.js'),
+    join(__dirname, '../../../node_modules/@deepseek-ai/dsh/lib/bin.js'),
+    resolve(__dirname, '../../../node_modules/.bin/dsh'),
   ]
   for (const c of candidates) {
     if (existsSync(c)) return c
