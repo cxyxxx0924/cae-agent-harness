@@ -71,3 +71,44 @@ CAE_HMBATCH  = C:\Altair\2023\hwdesktop\hw\bin\win64\hmbatch.exe
 CAE_LSDYNA   = C:\LSTC\ls971_s_R13.1_winx64_ifort131.exe
 CAE_HYPERVIEW = C:\Altair\2023\hwdesktop\hw\bin\win64\hw.exe
 ```
+
+---
+
+## 扩展 MCP 工具（hyperworks-mcp & qilan-solve-mcp）
+
+### HyperWorks MCP（`mcp__hyperworks__*`）
+通过 `packages/hyperworks-mcp` Python 包提供约 70 个 HyperWorks 工具，覆盖：
+- **hmbatch 脚本执行** — `mcp__hyperworks__run_hmbatch_script`
+- **工作提交（OptiStruct/Radioss）** — `mcp__hyperworks__submit_optistruct_job`, `mcp__hyperworks__submit_radioss_job`
+- **实时 HyperMesh Bridge** — `mcp__hyperworks__live_send_tcl`, `mcp__hyperworks__live_get_session_info`
+- **HyperView 后处理** — `mcp__hyperworks__hyperview_open_result`, `mcp__hyperworks__hyperview_export_animation`
+- **HyperStudy DOE** — `mcp__hyperworks__hyperstudy_create_study`
+- **环境探测** — `mcp__hyperworks__probe_environment`
+
+运行时需要 `HYPERWORKS_HOME` 环境变量指向 Altair 安装根目录。
+
+### Qilan Solve MCP（`mcp__qilan_solve__*`）
+通过 `packages/qilan-solve` Python 包提供 LS-DYNA 气帘仿真专用工具：
+
+| 工具 | 说明 |
+|------|------|
+| `mcp__qilan_solve__check_environment` | 检查 Python/LS-DYNA/HyperView 环境 |
+| `mcp__qilan_solve__check_hyperview` | 验证 HyperView 可执行路径 |
+| `mcp__qilan_solve__validate_kfile` | 验证 LS-DYNA .key 文件语法 |
+| `mcp__qilan_solve__health_gate` | 网格质量门控（前处理快速检查） |
+| `mcp__qilan_solve__read_d3plot` | 读取 d3plot 结果（时间步 / 节点位移） |
+| `mcp__qilan_solve__render_deployment` | 渲染气帘展开动画并生成 GIF |
+
+### 建议工具调用链（集成版）
+```
+IGS 导入
+  → mcp__hyperworks__run_hmbatch_script (import + partition)
+  → mcp__hyperworks__run_hmbatch_script (mesh)
+  → mcp__qilan_solve__validate_kfile    (.key 文件校验)
+  → mcp__qilan_solve__health_gate       (网格质量门控)
+  → mcp__cae__lsdyna_solve              (求解)
+  → mcp__qilan_solve__read_d3plot       (读取结果)
+  → mcp__qilan_solve__render_deployment (生成 GIF)
+  → mcp__cae__generate_ppt_report       (生成报告)
+```
+

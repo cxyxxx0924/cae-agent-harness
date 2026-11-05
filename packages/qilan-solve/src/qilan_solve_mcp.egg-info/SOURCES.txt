@@ -1,0 +1,11 @@
+README.md
+pyproject.toml
+src/qilan_solve_mcp/__init__.py
+src/qilan_solve_mcp/__main__.py
+src/qilan_solve_mcp/server.py
+src/qilan_solve_mcp.egg-info/PKG-INFO
+src/qilan_solve_mcp.egg-info/SOURCES.txt
+src/qilan_solve_mcp.egg-info/dependency_links.txt
+src/qilan_solve_mcp.egg-info/entry_points.txt
+src/qilan_solve_mcp.egg-info/requires.txt
+src/qilan_solve_mcp.egg-info/top_level.txt

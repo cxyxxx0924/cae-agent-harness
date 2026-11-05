@@ -3,6 +3,31 @@
 基于 **dsh (deepseek-harness)** 的 CAE 气帘仿真 Agent，支持全流程自动化：
 IGS 导入 → 模型分区 → 网格划分 → LS-DYNA 求解 → HyperView 导出 GIF → PPT 报告生成。
 
+## Python MCP 服务（hyperworks-mcp & qilan-solve-mcp）
+
+项目集成了两个 Python FastMCP 服务，需要 [uv](https://docs.astral.sh/uv/) >= 0.4：
+
+```bash
+# Windows 安装 uv（PowerShell）
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+| 包目录 | MCP Server 名 | 工具前缀 | 用途 |
+|--------|--------------|---------|------|
+| `packages/hyperworks-mcp/` | `hyperworks` | `mcp__hyperworks__*` | HyperMesh/HyperView/HyperStudy 全套自动化（~70 个工具）|
+| `packages/qilan-solve/` | `qilan_solve` | `mcp__qilan_solve__*` | LS-DYNA 气帘求解专用（校验、求解、GIF 渲染）|
+
+两个服务由 dsh 通过 cordis profile 的 `uv run --project` 自动启动，**无需手动安装**，首次启动时 uv 会自动创建虚拟环境并安装依赖。
+
+### 额外环境变量
+
+```bash
+# Altair HyperWorks 安装根目录（hyperworks-mcp 必需）
+set HYPERWORKS_HOME=C:\Altair\2023
+```
+
+`LSDYNA_BIN` 由 cordis 自动从 `CAE_LSDYNA` 转发，无需单独设置。
+
 ## 架构
 
 ```

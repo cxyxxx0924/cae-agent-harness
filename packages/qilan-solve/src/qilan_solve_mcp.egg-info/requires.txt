@@ -1,0 +1,10 @@
+fastmcp<3,>=2.0
+numpy<3,>=1.24
+matplotlib<4,>=3.7
+pillow<11,>=10.0
+
+[dev]
+pytest<9,>=8
+
+[lspp]
+lasso-python<3,>=2
