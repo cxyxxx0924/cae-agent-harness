@@ -1,0 +1,29 @@
+一、分区阶段
+hypermesh和hyperview在目录：D:\Program Files\Altair\2026\hwdesktop\hwx\bin\win64\runhwx.exe
+用2026版本hypermesh读入E:\work\AI_CAB\分区训练\igs\cab2.iges
+将数据曲线进行布带环、气腔环 、缝线环、拉带环四个pid的分区归类。分好后输出E:\work\AI_CAB\onekey\work\cab2.hm
+
+
+二、网格阶段
+用2026版本hypermesh将E:\work\AI_CAB\onekey\work\cab2.hm读入
+网格尺寸5mm
+缝线环-气腔环-布带环，布带环和气腔环之间布带面网格位置Z0；缝线环和气腔环之间气腔面网格位置Z-0.5和Z+0.5两层，充气口封口处网格属于气腔面网格，并在边缘捏合节点；缝线环内缝线面网格位置Z0。
+拉带环简化网格划分，以拉带凸台和矩形外轮廓线为主，内部细小curve可视方便忽略，面网格位置Z-1.关于这拉带网格与这个布带层网格连接方式，可以参考模型的连接方式
+输出文件E:\work\AI_CAB\onekey\work\cab2.k
+
+三、计算阶段
+lsdyna碰撞求解器：D:\Program Files\ANSYS Inc\v193\ansys\bin\winx64\lsdyna_mpp_sp_msmpi.exe
+连接lsdyna的MCP
+环境变量
+LSTC_LICENSE=ansys          ← 让求解器切到 ANSYS 许可模式（就是 E4 那句 "check ansys licenses only"）
+ANSYSLMD_LICENSE_FILE=1055@server   ← 指向 ANSYS 许可服务器
+ansyscl.exe 在 Shared Files\Licensing\winx64 里，但不在求解器目录——官方明确要求它必须和求解器 exe 同目录。这是第二个缺失件。我把 ansyscl.exe 拷到求解器目录（同版本自带文件，安全），再跑带 LSTC_LICENSE=ansys 的完整组合。把 ANSYSLMD_LICENSE_FILE 直接指向了实际的许可文件 D:\Program Files\ANSYS Inc\Shared Files\Licensing\license_files\ansyslmd.lic，许可这才 checkout 成功
+组合计算：
+使用技能：E:\work\skill\气帘计算求解skill。写一个计算头文件：E:\work\AI_CAB\onekey\main.key，加入车身模型E:\work\AI_CAB\onekey\BIW.k和气帘模型E:\work\AI_CAB\onekey\cab2.k两个模型，进行组合计算，输出d3plot按2.5ms间隔输出，计算总时长为200ms。清空原来的除网格以外所有的东西。组合计算参考E:\work\AI_CAB\Model_update_Move_Iter04\Model_update_Move_Iter04\main.key里面所有的设置。注意参考模型气帘形状尺寸与工作文件气帘模型完全一样（主要是网格不一样）。所有各项均参考参考模型（做法相当于copy）：以模型的车身与气帘之间相对位置参考，将工作文件中的气帘分别进行Y向平移和Z向平移，目标是使得工作目标模型的气帘与车身相对位置与参考模型的气帘与车身相对位置差不多。拉绳固定点气帘侧选取所有拉带（9个）加上充气口上端一个（连接方式参考参考模型），拉绳另一侧直接从气帘侧Z向向上找车身零件的投影点，直往上找如果找不到尽量往车身上找上面的 Z 向更高的那个节点，而不要找底下的节点。计算条件是向上拉起然后点爆，整体气帘是走 Z 向的方向垂直向上运动。所有条件均设置为参考模型一致，车身刚体。注意拉绳与拉带共节点的地方考虑阻尼和几克的质量。主要目的是工作模型在上升时段不要剧烈抖动，要求上升稳定，尤其注意气帘拉带节点。
+
+四、分析报告阶段
+
+hypermesh和hyperview在目录：D:\Program Files\Altair\2026\hwdesktop\hwx\bin\win64\runhwx.exe，确认hyperworks的mcp联通工作状态。
+
+计算结果：E:\work\AI_CAB\Model_update_Move_Iter04\Model_update_Move_Iter04\2974.h3d ，参考报告模板：E:\work\AI_CAB\JOB-00061377_IC_Coverage.pptx，
+阅读E:\work\AI_CAB\附录G可变形移动壁障侧面碰撞测试评价规程.pdf的一章节（第26页-29页）：G.14.3侧面气帘、头胸一体式气囊展开性能评估。理解评价规则，通过mcp调用hyperworks2026，读取工作文件，再hyperworks里寻找合适的关于气帘后处理相关模块，针对法规进行评估，并获取作报告的素材，分析参考报告（E:\work\AI_CAB\JOB-00061377_IC_Coverage.pptx）。使用假人头部模型及位置：E:\work\AI_CAB\head_area\main_dummy.key，依据阅读法规和已经掌握技能E:\work\skill\气帘评判及报告skill对计算结果进行评判。其中动画要与参考报告一致。先做一个copy参考报告的版本，另外加上法规评判内容
