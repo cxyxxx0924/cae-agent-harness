@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'">
+<title>CAE Agent — 设置</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0f172a;
+    --surface: #1e293b;
+    --border:  #334155;
+    --text:    #e2e8f0;
+    --muted:   #94a3b8;
+    --accent:  #2563eb;
+    --accent-h:#1d4ed8;
+    --ok:      #22c55e;
+    --err:     #f87171;
+    --warn:    #fbbf24;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+    height: 100%;
+  }
+
+  .layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  header {
+    padding: 16px 24px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  header p {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .first-run-banner {
+    background: #1e3a5f;
+    border-bottom: 1px solid #2563eb55;
+    padding: 10px 24px;
+    font-size: 0.8rem;
+    color: #93c5fd;
+    display: none;
+    flex-shrink: 0;
+  }
+  .first-run-banner.visible { display: block; }
+
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+
+  .section {
+    margin-bottom: 24px;
+  }
+
+  .section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field {
+    margin-bottom: 14px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  .field label span.required {
+    color: var(--err);
+    margin-left: 3px;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .input-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 7px 10px;
+    font-size: 0.85rem;
+    font-family: 'Consolas', 'Courier New', monospace;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row input[type="password"] { font-family: inherit; }
+
+  .browse-btn {
+    padding: 7px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .browse-btn:hover { background: #293548; border-color: #4f6179; }
+
+  .status-icon {
+    width: 22px;
+    text-align: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  .preset-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  .hint {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  footer {
+    padding: 14px 24px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+
+  .status-msg {
+    font-size: 0.8rem;
+    color: var(--muted);
+    flex: 1;
+  }
+  .status-msg.ok  { color: var(--ok); }
+  .status-msg.err { color: var(--err); }
+
+  .btn-row { display: flex; gap: 8px; }
+
+  .btn {
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.15s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-h); }
+  .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: #293548; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Header -->
+  <header>
+    <h1>⚙️ CAE Agent 设置</h1>
+    <p>配置完成后点击"保存并重启"使设置生效</p>
+  </header>
+
+  <!-- First-run banner -->
+  <div class="first-run-banner" id="firstRunBanner">
+    🎉 首次启动 — 请先填写必要路径，保存后 Agent 将自动启动
+  </div>
+
+  <!-- Main form -->
+  <div class="content">
+
+    <!-- AI 模型 -->
+    <div class="section">
+      <div class="section-title">AI 模型</div>
+
+      <div class="field">
+        <label>API Key<span class="required">*</span></label>
+        <div class="input-row">
+          <input type="password" id="apiKey" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+          <div class="status-icon" id="st-apiKey">—</div>
+        </div>
+        <div class="hint">DeepSeek / 通义千问 / 本地 Ollama（填 ollama 即可）的 API Key</div>
+      </div>
+
+      <div class="field">
+        <label>API Base URL</label>
+        <div class="input-row">
+          <input type="text" id="llmBaseUrl" placeholder="留空使用 DeepSeek（https://api.deepseek.com）">
+          <div class="status-icon" id="st-llmBaseUrl">—</div>
+        </div>
+        <div class="preset-row">
+          <button class="preset-btn" data-preset-url="https://api.deepseek.com">DeepSeek</button>
+          <button class="preset-btn" data-preset-url="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问</button>
+          <button class="preset-btn" data-preset-url="http://localhost:11434/v1">Ollama (本地)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HyperWorks 路径 -->
+    <div class="section">
+      <div class="section-title">HyperWorks 路径</div>
+
+      <div class="field">
+        <label>HyperWorks 安装根目录<span class="required">*</span>（HYPERWORKS_HOME）</label>
+        <div class="input-row">
+          <input type="text" id="hyperworksHome" placeholder="C:\Altair\2023">
+          <button class="browse-btn" data-browse-dir="hyperworksHome">浏览...</button>
+          <div class="status-icon" id="st-hyperworksHome">—</div>
+        </div>
+        <div class="hint">Altair HyperWorks 安装根目录，例如 C:\Altair\2023</div>
+      </div>
+
+      <div class="field">
+        <label>hmbatch.exe 路径<span class="required">*</span>（CAE_HMBATCH）</label>
+        <div class="input-row">
+          <input type="text" id="hmbatch" placeholder="C:\Altair\2023\hwdesktop\hw\bin\win64\hmbatch.exe">
+          <button class="browse-btn" data-browse-exe="hmbatch">浏览...</button>
+          <div class="status-icon" id="st-hmbatch">—</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>hw.exe（HyperView）路径（CAE_HYPERVIEW）</label>
+        <div class="input-row">
+          <input type="text" id="hyperview" placeholder="C:\Altair\2023\hwdesktop\hw\bin\win64\hw.exe">
+          <button class="browse-btn" data-browse-exe="hyperview">浏览...</button>
+          <div class="status-icon" id="st-hyperview">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LS-DYNA 求解器 -->
+    <div class="section">
+      <div class="section-title">LS-DYNA 求解器</div>
+
+      <div class="field">
+        <label>LS-DYNA 可执行文件<span class="required">*</span>（CAE_LSDYNA）</label>
+        <div class="input-row">
+          <input type="text" id="lsdyna" placeholder="C:\LSTC\ls971_s_R13.1_winx64_ifort131.exe">
+          <button class="browse-btn" data-browse-exe="lsdyna">浏览...</button>
+          <div class="status-icon" id="st-lsdyna">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 工作目录 -->
+    <div class="section">
+      <div class="section-title">仿真工作目录</div>
+
+      <div class="field">
+        <label>工作目录（CAE_WORKDIR）</label>
+        <div class="input-row">
+          <input type="text" id="workdir" placeholder="D:\cae_projects\airbag">
+          <button class="browse-btn" data-browse-dir="workdir">浏览...</button>
+          <div class="status-icon" id="st-workdir">—</div>
+        </div>
+        <div class="hint">仿真文件、网格和结果文件的默认输出目录</div>
+      </div>
+    </div>
+
+  </div><!-- /.content -->
+
+  <!-- Footer -->
+  <footer>
+    <div class="status-msg" id="statusMsg"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btnCheck">检查路径</button>
+      <button class="btn btn-primary"   id="btnSave">保存并重启</button>
+    </div>
+  </footer>
+
+</div><!-- /.layout -->
+
+<script>
+const api = window.caeSettings
+
+// ── DOM helpers ────────────────────────────────────────────────────────────
+function val(id)  { return document.getElementById(id).value.trim() }
+function setVal(id, v) { document.getElementById(id).value = v ?? '' }
+function setSt(id, icon) { document.getElementById('st-' + id).textContent = icon }
+function setMsg(text, cls) {
+  const el = document.getElementById('statusMsg')
+  el.textContent = text
+  el.className = 'status-msg' + (cls ? ' ' + cls : '')
+}
+
+// ── Path-based IDs that need file / dir checks ─────────────────────────────
+const EXE_FIELDS = ['hmbatch', 'hyperview', 'lsdyna']
+const DIR_FIELDS = ['hyperworksHome', 'workdir']
+const PATH_FIELDS = [...EXE_FIELDS, ...DIR_FIELDS]
+
+// ── Load on startup ────────────────────────────────────────────────────────
+async function init() {
+  const s = await api.load()
+  setVal('apiKey',        s.apiKey)
+  setVal('llmBaseUrl',    s.llmBaseUrl)
+  setVal('hyperworksHome',s.hyperworksHome)
+  setVal('hmbatch',       s.hmbatch)
+  setVal('hyperview',     s.hyperview)
+  setVal('lsdyna',        s.lsdyna)
+  setVal('workdir',       s.workdir)
+
+  // Show first-run banner if apiKey is empty
+  if (!s.apiKey) {
+    document.getElementById('firstRunBanner').classList.add('visible')
+  }
+
+  await checkPaths()
+}
+
+// ── Check all paths ────────────────────────────────────────────────────────
+async function checkPaths() {
+  const paths = {}
+  PATH_FIELDS.forEach(id => { paths[id] = val(id) })
+  const results = await api.checkPaths(paths)
+  PATH_FIELDS.forEach(id => {
+    const v = val(id)
+    if (!v) { setSt(id, '—'); return }
+    setSt(id, results[id] ? '✅' : '❌')
+  })
+  // API key indicator
+  setSt('apiKey', val('apiKey') ? '✅' : '—')
+}
+
+// ── Browse buttons ─────────────────────────────────────────────────────────
+document.querySelectorAll('[data-browse-exe]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-browse-exe')
+    const p = await api.browseExe(btn.closest('.field').querySelector('label').textContent)
+    if (p) { setVal(id, p); await checkPaths() }
+  })
+})
+
+document.querySelectorAll('[data-browse-dir]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const id = btn.getAttribute('data-browse-dir')
+    const p = await api.browseDir(btn.closest('.field').querySelector('label').textContent)
+    if (p) { setVal(id, p); await checkPaths() }
+  })
+})
+
+// ── Preset URL buttons ─────────────────────────────────────────────────────
+document.querySelectorAll('[data-preset-url]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setVal('llmBaseUrl', btn.getAttribute('data-preset-url'))
+    setSt('llmBaseUrl', '—')
+  })
+})
+
+// ── Live check on input change ─────────────────────────────────────────────
+PATH_FIELDS.forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    setSt(id, '…')
+  })
+})
+
+// ── Check button ───────────────────────────────────────────────────────────
+document.getElementById('btnCheck').addEventListener('click', async () => {
+  setMsg('正在检查路径…')
+  await checkPaths()
+  setMsg('路径检查完成', 'ok')
+})
+
+// ── Save button ────────────────────────────────────────────────────────────
+document.getElementById('btnSave').addEventListener('click', async () => {
+  const apiKey = val('apiKey')
+  if (!apiKey) {
+    setMsg('API Key 不能为空', 'err')
+    document.getElementById('apiKey').focus()
+    return
+  }
+
+  const settings = {
+    apiKey,
+    llmBaseUrl:     val('llmBaseUrl'),
+    hyperworksHome: val('hyperworksHome'),
+    hmbatch:        val('hmbatch'),
+    hyperview:      val('hyperview'),
+    lsdyna:         val('lsdyna'),
+    workdir:        val('workdir'),
+  }
+
+  try {
+    await api.save(settings)
+    setMsg('已保存，Agent 正在重启…', 'ok')
+    document.getElementById('btnSave').disabled = true
+  } catch (e) {
+    setMsg('保存失败：' + e.message, 'err')
+  }
+})
+
+init()
+</script>
+</body>
+</html>
