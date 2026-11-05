@@ -2,9 +2,10 @@ import { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog } from 'elec
 import { ipcMain } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve, join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
+import { createInterface } from 'node:readline'
 import http from 'node:http'
-import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
+import { loadSettings, saveSettings, isFirstRun, SIMULATION_FIELDS, parseSimulationSettings, type CaeSettings } from './store'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const DSH_PORT          = Number(process.env.DSH_PORT ?? 3080)
@@ -45,28 +46,58 @@ function preloadPath(): string {
 
 // ── State ──────────────────────────────────────────────────────────────────
 let dshProcess:    ChildProcess | null  = null
+let dshUrl: string | null = null
+let startupComplete = false
+let dshRestart: Promise<void> | null = null
 let mainWindow:    BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
 
 // ── dsh lifecycle ─────────────────────────────────────────────────────────
-function waitForDsh(timeoutMs: number): Promise<void> {
-  const start = Date.now()
-  return new Promise((res, rej) => {
-    function probe() {
-      http.get(`${DSH_URL}/api/health`, (r) => {
-        if (r.statusCode !== undefined && r.statusCode < 500) res()
-        else retry()
-        r.resume()
-      }).on('error', retry)
+function waitForDsh(proc: ChildProcess, timeoutMs: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const output = createInterface({ input: proc.stdout! })
+    let request: http.ClientRequest | undefined
+    let settled = false
+    const timeout = setTimeout(() => {
+      finish(new Error(`dsh did not start within ${timeoutMs}ms`))
+    }, timeoutMs)
+
+    function finish(error?: Error, url?: string): void {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      output.close()
+      proc.off('error', onError)
+      proc.off('exit', onExit)
+      request?.destroy()
+      if (error) reject(error)
+      else resolve(url!)
     }
-    function retry() {
-      if (Date.now() - start > timeoutMs) {
-        rej(new Error(`dsh did not start within ${timeoutMs}ms`))
-        return
-      }
-      setTimeout(probe, 800)
+
+    function onError(error: Error): void {
+      finish(error)
     }
-    probe()
+
+    function onExit(code: number | null, signal: NodeJS.Signals | null): void {
+      finish(new Error(`dsh exited before startup completed (${signal ?? code}). Check the dsh logs for details.`))
+    }
+
+    output.on('line', (line: string) => {
+      const match = /^dsh web: (http:\/\/\S+)$/.exec(line)
+      if (!match || request) return
+      const url = new URL(match[1])
+      if (url.origin !== DSH_URL || url.pathname !== '/' || !url.searchParams.get('token')) return
+      request = http.get(url, response => {
+        const authenticated = response.statusCode === 303 && Boolean(response.headers['set-cookie']?.length)
+        response.resume()
+        if (authenticated) finish(undefined, url.href)
+        else finish(new Error(`dsh authentication failed (HTTP ${response.statusCode}).`))
+      })
+      request.setTimeout(5000, () => request?.destroy(new Error('dsh authentication request timed out.')))
+      request.on('error', onError)
+    })
+    proc.once('error', onError)
+    proc.once('exit', onExit)
   })
 }
 
@@ -82,17 +113,17 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     DEEPSEEK_API_KEY:   settings.apiKey   || process.env.DEEPSEEK_API_KEY   || '',
     LLM_BASE_URL:       settings.llmBaseUrl || process.env.LLM_BASE_URL     || '',
     LLM_MODEL:          settings.model    || process.env.LLM_MODEL          || '',
-    CAE_HMBATCH:        settings.hmbatch  || process.env.CAE_HMBATCH        || '',
-    CAE_HYPERVIEW:      settings.hyperview || process.env.CAE_HYPERVIEW     || '',
-    CAE_LSDYNA:         settings.lsdyna   || process.env.CAE_LSDYNA         || '',
-    CAE_WORKDIR:        settings.workdir  || process.env.CAE_WORKDIR        || '',
-    HYPERWORKS_HOME:    settings.hyperworksHome || process.env.HYPERWORKS_HOME || '',
+    CAE_HMBATCH:        settings.hmbatch,
+    CAE_HYPERVIEW:      settings.hyperview,
+    CAE_LSDYNA:         settings.lsdyna,
+    CAE_WORKDIR:        settings.workdir,
+    HYPERWORKS_HOME:    settings.hyperworksHome,
   }
   // Remove empty-string entries to avoid overriding child-process defaults
-  for (const key of Object.keys(env) as (keyof NodeJS.ProcessEnv)[]) {
-    if (env[key] === '') delete env[key]
+  for (const key of Object.keys(env)) {
+    if (env[key] === '' && !['CAE_HMBATCH', 'CAE_HYPERVIEW', 'CAE_LSDYNA', 'CAE_WORKDIR', 'HYPERWORKS_HOME'].includes(key)) delete env[key]
   }
-  const proc = spawn('node', [bin, 'web', '--patch', profile, '--no-open'], {
+  const proc = spawn('node', [bin, 'web', '--patch', profile, '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT)], {
     env,
     cwd: projectRoot(),
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -101,8 +132,14 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   })
   proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[dsh] ${d}`))
   proc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[dsh] ${d}`))
+  proc.on('error', (error) => {
+    process.stderr.write(`[dsh] ${error.message}\n`)
+  })
   proc.on('exit', (code) => {
     process.stderr.write(`[dsh] exited with code ${code}\n`)
+    if (dshProcess !== proc) return
+    dshProcess = null
+    dshUrl = null
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow
         .loadFile(join(__dirname, '..', 'resources', 'error.html'))
@@ -112,20 +149,50 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   return proc
 }
 
-async function restartDsh(): Promise<void> {
-  if (dshProcess && !dshProcess.killed) {
-    dshProcess.kill('SIGTERM')
-    await new Promise<void>(res => {
-      dshProcess!.on('exit', () => res())
-      setTimeout(() => res(), 3000)  // force-continue after 3s
+async function stopDsh(): Promise<void> {
+  const proc = dshProcess
+  dshProcess = null
+  dshUrl = null
+  if (!proc?.pid || proc.exitCode !== null || proc.signalCode !== null) return
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => proc.kill('SIGKILL'), 3000)
+    proc.once('exit', () => {
+      clearTimeout(timeout)
+      proc.off('error', onError)
+      resolve()
     })
-    dshProcess = null
+    function onError(error: Error): void {
+      clearTimeout(timeout)
+      reject(error)
+    }
+    proc.once('error', onError)
+    proc.kill('SIGTERM')
+  })
+}
+
+async function startDsh(): Promise<void> {
+  dshProcess = spawnDsh(loadSettings())
+  try {
+    dshUrl = await waitForDsh(dshProcess, STARTUP_TIMEOUT_MS)
+  } catch (error) {
+    await stopDsh()
+    throw error
   }
-  const settings = loadSettings()
-  dshProcess = spawnDsh(settings)
-  await waitForDsh(STARTUP_TIMEOUT_MS)
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.loadURL(DSH_URL).catch(() => { /* ignore */ })
+}
+
+async function restartDsh(): Promise<void> {
+  if (dshRestart) return dshRestart
+  dshRestart = (async () => {
+    await stopDsh()
+    await startDsh()
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      await mainWindow.loadURL(dshUrl!)
+    }
+  })()
+  try {
+    await dshRestart
+  } finally {
+    dshRestart = null
   }
 }
 
@@ -163,6 +230,55 @@ function openSettingsWindow(): BrowserWindow {
 
 // ── IPC handlers ───────────────────────────────────────────────────────────
 function registerIpc(): void {
+  function requireMainWindow(event: Electron.IpcMainInvokeEvent): void {
+    const url = new URL(event.senderFrame?.url ?? 'about:blank')
+    if (event.sender !== mainWindow?.webContents || url.origin !== DSH_URL) {
+      throw new Error('请在 CAE Agent 主窗口中配置仿真软件。')
+    }
+  }
+
+  ipcMain.handle('simulation:load', event => {
+    requireMainWindow(event)
+    const settings = loadSettings()
+    return Object.fromEntries(SIMULATION_FIELDS.map(field => [field, settings[field]]))
+  })
+
+  ipcMain.handle('simulation:save', async (event, raw: unknown) => {
+    requireMainWindow(event)
+    if (dshRestart) throw new Error('后台服务正在重启，请稍后重试。')
+    const settings = parseSimulationSettings(raw)
+    saveSettings({ ...loadSettings(), ...settings })
+    await restartDsh()
+  })
+
+  ipcMain.handle('simulation:browse', async (event, kind: unknown, title: unknown) => {
+    requireMainWindow(event)
+    if ((kind !== 'directory' && kind !== 'file') || typeof title !== 'string') {
+      throw new Error('路径选择参数无效。')
+    }
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: `选择${title.slice(0, 100)}`,
+      properties: kind === 'directory' ? ['openDirectory', 'createDirectory'] : ['openFile'],
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+
+  ipcMain.handle('simulation:check-paths', (event, raw: unknown) => {
+    requireMainWindow(event)
+    const paths = parseSimulationSettings(raw)
+    return Object.fromEntries(SIMULATION_FIELDS.map(field => {
+      const path = paths[field]
+      if (!path) return [field, { valid: false, empty: true, message: '未配置，可稍后填写。' }]
+      try {
+        const stat = statSync(path)
+        const valid = field === 'hyperworksHome' || field === 'workdir' ? stat.isDirectory() : stat.isFile()
+        return [field, { valid, message: valid ? '路径可用。' : '路径类型不匹配，请重新选择。' }]
+      } catch {
+        return [field, { valid: false, message: '路径不存在或无法访问。' }]
+      }
+    }))
+  })
+
   ipcMain.handle('settings:load', () => loadSettings())
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
@@ -170,6 +286,7 @@ function registerIpc(): void {
     // Close settings window, then restart dsh + reload main window
     settingsWindow?.webContents.send('settings:saved')
     settingsWindow?.close()
+    if (!startupComplete) return
     try {
       await restartDsh()
     } catch (err) {
@@ -213,6 +330,7 @@ function registerIpc(): void {
 
 // ── Main window ────────────────────────────────────────────────────────────
 function createMainWindow(): void {
+  if (!dshUrl) return
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -223,11 +341,16 @@ function createMainWindow(): void {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
+      preload: join(__dirname, 'ui-preload.js'),
     },
     backgroundColor: '#0f172a',
     show: false,
   })
-  mainWindow.loadURL(DSH_URL)
+  mainWindow.loadURL(dshUrl)
+  mainWindow.webContents.on('page-title-updated', event => {
+    event.preventDefault()
+    mainWindow?.setTitle('CAE Agent')
+  })
   mainWindow.once('ready-to-show', () => { mainWindow?.show() })
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) shell.openExternal(url)
@@ -300,9 +423,9 @@ app.whenReady().then(async () => {
   }
 
   try {
-    dshProcess = spawnDsh(loadSettings())
-    await waitForDsh(STARTUP_TIMEOUT_MS)
+    await startDsh()
     createMainWindow()
+    startupComplete = true
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     dialog.showErrorBox('CAE Agent — 启动失败', msg)
@@ -311,7 +434,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (startupComplete && process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {

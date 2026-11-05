@@ -40,6 +40,8 @@ importers:
         specifier: 5.6.3
         version: 5.6.3
 
+  packages/cae-ui: {}
+
   packages/electron-shell:
     dependencies:
       '@deepseek-ai/dsh':

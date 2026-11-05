@@ -1,15 +1,4 @@
-# CAE 气帘仿真 dsh Profile
-# Run: dsh --profile config/cae-airbag.cordis.yml  (from project root)
-#
-# LLM switching via env vars (no code change needed):
-#   DeepSeek  — DEEPSEEK_API_KEY=sk-...
-#   QWen      — LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1  DEEPSEEK_API_KEY=<dashscope-key>
-#   Ollama    — LLM_BASE_URL=http://localhost:11434/v1  DEEPSEEK_API_KEY=ollama
-#   Model     — LLM_MODEL=deepseek-chat  (or qwen-max, deepseek-reasoner, gpt-4o …)
-
-# ── LLM ─────────────────────────────────────────────────────────────────────
-- id: llm-api
-  name: '@deepseek-ai/dsh-llm-deepseek-api-key'
+- id: llm-deepseek
   config:
     baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com'
     apiKeyEnv: DEEPSEEK_API_KEY
@@ -18,91 +7,128 @@
         name: !!js process.env.LLM_MODEL || 'DeepSeek Chat'
         contextWindow: 65536
         maxTokens: 8192
-      - id: deepseek-reasoner
-        name: DeepSeek R1
-        contextWindow: 65536
-        maxTokens: 32768
 
-# ── CAE MCP Server ───────────────────────────────────────────────────────────
-- id: mcp-cae
-  name: '@deepseek-ai/dsh-mcp-client'
+- id: ui-plugin-manager
+  disabled: true
+- id: entry-customization
+  disabled: true
+- id: ui-settings-account
+  disabled: true
+- id: ui-settings-plugins
+  disabled: true
+- id: ui-settings-plugin-inventory
+  disabled: true
+- id: ui-settings-shell
+  disabled: true
+- id: ui-settings-agent-loop
+  disabled: true
+- id: ui-settings-subagent
+  disabled: true
+- id: ui-settings-web-search
+  disabled: true
+- id: ui-agent-preset
+  disabled: true
+- id: ui-cordis
+  disabled: true
+- id: preset-cordis
+  disabled: true
+- id: preset-ptc
+  disabled: true
+- id: preset-minimal
+  disabled: true
+- id: llm-deepseek-account
+  disabled: true
+
+- id: preset-standard
   config:
-    serverName: cae
-    transport: stdio
-    command: node
-    args:
-      - !!js require('path').join(process.cwd(), 'packages/cae-mcp-server/dist/index.js')
-    env:
-      CAE_WORKDIR:   !!js process.env.CAE_WORKDIR   || 'D:\\cae_projects\\airbag'
-      CAE_HMBATCH:   !!js process.env.CAE_HMBATCH   || ''
-      CAE_LSDYNA:    !!js process.env.CAE_LSDYNA    || ''
-      CAE_HYPERVIEW: !!js process.env.CAE_HYPERVIEW || ''
-    failOnStartupError: false
-    toolCallTimeoutMs: 3600000
+    id: standard
+    order: 1
+    plugins:
+      - id: persona
+        name: '@deepseek-ai/dsh-persona'
+        config:
+          prefix: |
+            你是 CAE 汽车气帘仿真助手，负责协助用户完成几何导入、模型分区、网格划分、
+            LS-DYNA 求解、HyperView 后处理和仿真报告生成。
+            使用已连接的 CAE、HyperWorks 和 Qilan Solve MCP 工具执行任务。
+            运行仿真或写入文件前先与用户确认输入和输出路径，逐步汇报进度。
+            工具失败时检查日志并说明原因；未安装软件时引导用户在“设置 → 仿真软件”配置。
+      - id: agent-instructions
+        name: '@deepseek-ai/dsh-agent-instructions'
+        config:
+          maxBytes: 65536
+      - id: time-context
+        name: '@deepseek-ai/dsh-time-context'
+      - id: tool-fs
+        name: '@deepseek-ai/dsh-tool-fs'
+      - id: tool-fs-search
+        name: '@deepseek-ai/dsh-tool-fs-search'
+        config:
+          sampleOverCapGlobResults: false
+      - id: tool-bash
+        name: '@deepseek-ai/dsh-tool-bash'
+        disabled: !!js process.platform === 'win32'
+      - id: tool-pwsh
+        name: '@deepseek-ai/dsh-tool-pwsh'
+        disabled: !!js process.platform !== 'win32'
+      - id: tool-ask-user
+        name: '@deepseek-ai/dsh-tool-ask-user'
+      - id: skill-filesystem
+        name: '@deepseek-ai/dsh-skill-filesystem'
+      - id: tool-skill
+        name: '@deepseek-ai/dsh-tool-skill'
 
-# ── File-system tools ────────────────────────────────────────────────────────
+- insert:
+    - id: cae-ui
+      name: '../packages/cae-ui/index.js'
 
-# -- HyperWorks MCP (Python / FastMCP) ----------------------------------------
-- id: mcp-hyperworks
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: hyperworks
-    transport: stdio
-    command: uv
-    args:
-      - run
-      - --project
-      - !!js require('path').join(process.cwd(), 'packages/hyperworks-mcp')
-      - hyperworks-mcp
-    env:
-      HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME || 'C:\\Altair\\2023'
-    failOnStartupError: false
-    toolCallTimeoutMs: 3600000
+    - id: mcp-cae
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: cae
+        transport: stdio
+        command: node
+        args:
+          - !!js process.cwd() + '/packages/cae-mcp-server/dist/index.js'
+        env:
+          CAE_WORKDIR: !!js process.env.CAE_WORKDIR ?? ''
+          CAE_HMBATCH: !!js process.env.CAE_HMBATCH ?? ''
+          CAE_LSDYNA: !!js process.env.CAE_LSDYNA ?? ''
+          CAE_HYPERVIEW: !!js process.env.CAE_HYPERVIEW ?? ''
+        failOnStartupError: false
+        toolCallTimeoutMs: 3600000
 
-# -- Qilan Solve MCP (Python / FastMCP) ----------------------------------------
-- id: mcp-qilan-solve
-  name: '@deepseek-ai/dsh-mcp-client'
-  config:
-    serverName: qilan_solve
-    transport: stdio
-    command: uv
-    args:
-      - run
-      - --project
-      - !!js require('path').join(process.cwd(), 'packages/qilan-solve')
-      - qilan-solve-mcp
-    env:
-      LSDYNA_BIN:      !!js process.env.CAE_LSDYNA    || ''
-      HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME || ''
-    failOnStartupError: false
-    toolCallTimeoutMs: 3600000
+    - id: mcp-hyperworks
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js "!process.env.HYPERWORKS_HOME"
+      config:
+        serverName: hyperworks
+        transport: stdio
+        command: uv
+        args:
+          - run
+          - --project
+          - !!js process.cwd() + '/packages/hyperworks-mcp'
+          - hyperworks-mcp
+        env:
+          HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME ?? ''
+        failOnStartupError: false
+        toolCallTimeoutMs: 3600000
 
-- id: tool-fs
-  config:
-    applyPatch: true
-
-# ── Shell tools (for ad-hoc TCL helpers) ─────────────────────────────────────
-- id: tool-bash
-  config: {}
-
-# ── Web UI ────────────────────────────────────────────────────────────────────
-- id: web-app
-  config:
-    port:  !!js Number(process.env.DSH_PORT || 3080)
-    host: '127.0.0.1'
-
-# ── CAE Persona / System Prompt ───────────────────────────────────────────────
-- id: persona-cae
-  name: '@deepseek-ai/dsh-persona'
-  config:
-    text: |
-      You are a CAE simulation expert assistant specialising in airbag (气帘) crash simulation.
-      You drive the full simulation pipeline using these MCP tools:
-        Step 1 — mcp__cae__hypermesh_import_igs       : Import IGS/IGES geometry
-        Step 2 — mcp__cae__hypermesh_partition_airbag : Partition model into components
-        Step 3 — mcp__cae__hypermesh_generate_mesh    : Generate mesh + export .key
-        Step 4 — mcp__cae__lsdyna_solve               : Run LS-DYNA solver
-        Step 5 — mcp__cae__hyperview_export_gif       : Export animation GIF
-        Step 6 — mcp__cae__generate_ppt_report        : Generate PowerPoint report
-      Always confirm file paths with the user before running tools.
-      Report progress at each step. On tool error, analyse the log and suggest fixes.
+    - id: mcp-qilan-solve
+      name: '@deepseek-ai/dsh-mcp-client'
+      disabled: !!js "!process.env.CAE_LSDYNA"
+      config:
+        serverName: qilan_solve
+        transport: stdio
+        command: uv
+        args:
+          - run
+          - --project
+          - !!js process.cwd() + '/packages/qilan-solve'
+          - qilan-solve-mcp
+        env:
+          LSDYNA_BIN: !!js process.env.CAE_LSDYNA ?? ''
+          HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME ?? ''
+        failOnStartupError: false
+        toolCallTimeoutMs: 3600000

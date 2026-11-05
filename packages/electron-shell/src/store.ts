@@ -13,6 +13,22 @@ export interface CaeSettings {
   model: string
 }
 
+export const SIMULATION_FIELDS = ['hyperworksHome', 'hmbatch', 'hyperview', 'lsdyna', 'workdir'] as const
+export type SimulationSettings = Pick<CaeSettings, typeof SIMULATION_FIELDS[number]>
+
+export function parseSimulationSettings(raw: unknown): SimulationSettings {
+  if (!raw || typeof raw !== 'object') throw new Error('仿真配置格式无效。')
+  const settings = {} as SimulationSettings
+  for (const field of SIMULATION_FIELDS) {
+    const value = (raw as Record<string, unknown>)[field]
+    if (typeof value !== 'string' || value.includes('\0') || value.length > 32768) {
+      throw new Error('仿真路径格式无效，请重新填写。')
+    }
+    settings[field] = value.trim()
+  }
+  return settings
+}
+
 const DEFAULTS: CaeSettings = {
   hmbatch: 'C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hmbatch.exe',
   hyperview: 'C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hw.exe',

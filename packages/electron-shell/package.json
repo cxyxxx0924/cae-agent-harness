@@ -43,6 +43,11 @@
     },
     "extraResources": [
       {
+        "from": "../cae-ui",
+        "to": "packages/cae-ui",
+        "filter": ["package.json", "index.js", "client.js"]
+      },
+      {
         "from": "../../config",
         "to": "config",
         "filter": ["**/*"]

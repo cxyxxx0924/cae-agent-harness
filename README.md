@@ -102,8 +102,8 @@ set CAE_HYPERVIEW=C:\Altair\2023\hwdesktop\hw\bin\win64\hw.exe
 # 先启动 MCP Server（确认可用）
 node packages/cae-mcp-server/dist/index.js
 
-# 启动 dsh Agent（浏览器访问 http://localhost:3080）
-npx @deepseek-ai/dsh --profile config/cae-airbag.cordis.yml
+# 启动 dsh Agent，然后打开终端打印的完整 URL（含 ?token=...）
+pnpm exec dsh web --patch config/cae-airbag.cordis.yml --no-open
 ```
 
 ### 启动桌面应用（开发模式）
@@ -111,6 +111,22 @@ npx @deepseek-ai/dsh --profile config/cae-airbag.cordis.yml
 ```bash
 pnpm dev
 ```
+
+首次启动时，在设置窗口填写 API Key 后保存；以后可以通过应用菜单的“设置…”修改。
+桌面应用会自动打开带认证 token 的 dsh 地址。手动使用浏览器调试时，也要使用终端打印的完整 URL，直接访问 `http://127.0.0.1:3080/` 会提示需要认证。
+
+主界面左下角的“设置 → 仿真软件”可配置 HyperWorks 安装目录、HyperMesh 批处理程序、HyperView、LS-DYNA 和仿真工作目录。
+每项路径均支持浏览选择；“检查路径”会验证文件或目录是否存在，“保存并重启”会持久化路径并重启后台，使 MCP 工具读取新配置。
+模型 API Key 不会通过仿真配置接口发送到主界面，保存仿真路径也不会覆盖模型设置。
+
+CAE 界面通过 `config/cae-airbag.cordis.yml` 关闭插件管理、插件创建“更多”、账号登录/意见反馈、内置插件配置和通用 Agent 预设入口。
+`packages/cae-ui/` 是基于 dsh 设置扩展接口的本地插件，负责“仿真软件”页，无需修改 dsh 的依赖包。
+
+桌面应用优先使用设置窗口中保存的配置。直接运行 dsh 时，它会读取启动环境、项目 `.env` 和用户目录 `.env`，已有环境变量优先；仅在 `.env` 中填写 API Key 不会跳过桌面应用的首次配置窗口。
+macOS 可以先验证界面、设置保存和模型对话；Windows CAE 软件的实际执行及安装包仍需在 Windows 上验证。
+
+如果日志出现 `EADDRINUSE`，说明端口已被其他进程占用，请退出之前启动的 CAE Agent 或 dsh 后重试。
+需要同时运行多个实例时，在启动前设置不同的 `DSH_PORT`（macOS 例如 `DSH_PORT=3081 pnpm dev`）。
 
 ### 打包 Windows 安装包
 
@@ -146,7 +162,7 @@ cae-agent-harness/
 ```bash
 set LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 set DEEPSEEK_API_KEY=sk-<dashscope-api-key>
-npx @deepseek-ai/dsh --profile config/cae-airbag.cordis.yml
+pnpm exec dsh web --patch config/cae-airbag.cordis.yml --no-open
 ```
 
 ## 使用本地 Ollama 模型
@@ -157,7 +173,7 @@ ollama pull qwen2.5-coder:32b
 
 set LLM_BASE_URL=http://localhost:11434/v1
 set DEEPSEEK_API_KEY=ollama
-npx @deepseek-ai/dsh --profile config/cae-airbag.cordis.yml
+pnpm exec dsh web --patch config/cae-airbag.cordis.yml --no-open
 ```
 
 ## dsh 版本
