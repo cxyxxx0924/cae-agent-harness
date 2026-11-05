@@ -5,8 +5,9 @@ import { resolve, join, delimiter } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import http from 'node:http'
-import { loadSettings, saveSettings, isFirstRun, SIMULATION_FIELDS, parseSimulationSettings, type CaeSettings } from './store'
+import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
 import { parseModelSettings } from './model-settings'
+import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const DSH_PORT          = Number(process.env.DSH_PORT ?? 3080)
@@ -105,6 +106,7 @@ function waitForDsh(proc: ChildProcess, timeoutMs: number): Promise<string> {
 
 function spawnDsh(settings: CaeSettings): ChildProcess {
   const modelSettings = parseModelSettings(settings)
+  const simulationEnv = simulationEnvironment(parseSimulationSettings(settings))
   const bin     = dshBin()
   const profile = profilePath()
   const env: NodeJS.ProcessEnv = {
@@ -116,11 +118,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     DEEPSEEK_API_KEY:   modelSettings.apiKey,
     LLM_BASE_URL:       modelSettings.llmBaseUrl || process.env.LLM_BASE_URL || '',
     LLM_MODEL:          modelSettings.model,
-    CAE_HMBATCH:        settings.hmbatch,
-    CAE_HYPERVIEW:      settings.hyperview,
-    CAE_LSDYNA:         settings.lsdyna,
-    CAE_WORKDIR:        settings.workdir,
-    HYPERWORKS_HOME:    settings.hyperworksHome,
+    ...simulationEnv,
   }
   const nodeExecutable = IS_PACKAGED ? resourcePath('node', 'node.exe') : 'node'
   if (IS_PACKAGED) {
@@ -134,7 +132,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   }
   // Remove empty-string entries to avoid overriding child-process defaults
   for (const key of Object.keys(env)) {
-    if (env[key] === '' && !['CAE_HMBATCH', 'CAE_HYPERVIEW', 'CAE_LSDYNA', 'CAE_WORKDIR', 'HYPERWORKS_HOME'].includes(key)) delete env[key]
+    if (env[key] === '' && !(key in simulationEnv)) delete env[key]
   }
   const proc = spawn(nodeExecutable, [bin, 'web', '--patch', profile, '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT)], {
     env,
@@ -279,8 +277,8 @@ function registerIpc(): void {
 
   ipcMain.handle('simulation:check-paths', (event, raw: unknown) => {
     requireMainWindow(event)
-    const paths = parseSimulationSettings(raw)
-    return Object.fromEntries(SIMULATION_FIELDS.map(field => {
+    const paths = parseSimulationSettings(raw, { validateService: false })
+    return Object.fromEntries(SIMULATION_PATH_FIELDS.filter(field => field !== 'lsdyna' || (paths.solverLocation === 'local' && paths.localSolverType === 'software')).map(field => {
       const path = paths[field]
       if (!path) return [field, { valid: false, empty: true, message: '未配置，可稍后填写。' }]
       try {
@@ -293,7 +291,13 @@ function registerIpc(): void {
     }))
   })
 
+  ipcMain.handle('simulation:check-service', (event, raw: unknown) => {
+    requireMainWindow(event)
+    return checkSolverService(raw)
+  })
+
   ipcMain.handle('settings:load', () => loadSettings())
+  ipcMain.handle('settings:check-service', (_event, raw: unknown) => checkSolverService(raw))
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
     saveSettings(raw)

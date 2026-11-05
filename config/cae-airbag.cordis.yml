@@ -72,6 +72,8 @@
             你是 CAE 汽车气帘仿真助手，负责协助用户完成几何导入、模型分区、网格划分、
             LS-DYNA 求解、HyperView 后处理和仿真报告生成。
             使用已连接的 CAE、HyperWorks 和 Qilan Solve MCP 工具执行任务。
+            LS-DYNA 求解统一使用 mcp__cae__lsdyna_solve，它会按设置选择本地软件、本地求解服务或服务端。
+            服务模式下先确认模型及引用文件能被求解服务访问，不要绕过配置直接启动本地求解器。
             运行仿真或写入文件前先与用户确认输入和输出路径，逐步汇报进度。
             工具失败时检查日志并说明原因；未安装软件时引导用户在“设置 → 仿真软件”配置。
       - id: agent-instructions
@@ -115,6 +117,10 @@
           CAE_WORKDIR: !!js process.env.CAE_WORKDIR ?? ''
           CAE_HMBATCH: !!js process.env.CAE_HMBATCH ?? ''
           CAE_LSDYNA: !!js process.env.CAE_LSDYNA ?? ''
+          CAE_SOLVER_LOCATION: !!js process.env.CAE_SOLVER_LOCATION ?? 'local'
+          CAE_LOCAL_SOLVER_TYPE: !!js process.env.CAE_LOCAL_SOLVER_TYPE ?? 'software'
+          CAE_SOLVER_SERVICE_URL: !!js process.env.CAE_SOLVER_SERVICE_URL ?? ''
+          CAE_SOLVER_SERVICE_TOKEN: !!js process.env.CAE_SOLVER_SERVICE_TOKEN ?? ''
           CAE_HYPERVIEW: !!js process.env.CAE_HYPERVIEW ?? ''
         failOnStartupError: false
         toolCallTimeoutMs: 3600000

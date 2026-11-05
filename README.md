@@ -119,7 +119,7 @@ API Key 填写密钥，API Base URL 填写以 `http://` 或 `https://` 开头的
 模型通过 OpenAI Chat Completions 兼容接口调用，支持 DeepSeek、通义千问、Ollama 和兼容网关。
 桌面应用会自动打开带认证 token 的 dsh 地址。手动使用浏览器调试时，也要使用终端打印的完整 URL，直接访问 `http://127.0.0.1:3080/` 会提示需要认证。
 
-主界面左下角的“设置 → 仿真软件”可配置 HyperWorks 安装目录、HyperMesh 批处理程序、HyperView、LS-DYNA 和仿真工作目录。
+主界面左下角的“设置 → 仿真软件”可配置求解位置、接入方式、HyperWorks 安装目录、HyperMesh 批处理程序、HyperView 和仿真工作目录。
 每项路径均支持浏览选择；“检查路径”会验证文件或目录是否存在，“保存并重启”会持久化路径并重启后台，使 MCP 工具读取新配置。
 模型 API Key 不会通过仿真配置接口发送到主界面，保存仿真路径也不会覆盖模型设置。
 
@@ -131,6 +131,52 @@ macOS 可以先验证界面、设置保存和模型对话；Windows CAE 软件�
 
 如果日志出现 `EADDRINUSE`，说明端口已被其他进程占用，请退出之前启动的 CAE Agent 或 dsh 后重试。
 需要同时运行多个实例时，在启动前设置不同的 `DSH_PORT`（macOS 例如 `DSH_PORT=3081 pnpm dev`）。
+
+### 求解器部署方式
+
+“设置 → 仿真软件”和桌面应用菜单的“设置…”均支持以下配置：
+
+| 求解位置 | 本地求解方式 | 配置项 |
+|----------|--------------|--------|
+| 本地 | 软件 | 本机 LS-DYNA 可执行文件路径，沿用已有配置 |
+| 本地 | 求解服务 | 本机 HTTP 求解服务地址，例如 `http://127.0.0.1:8000`，以及可选的访问令牌 |
+| 服务端 | — | 远程 HTTP 求解服务地址，以及可选的访问令牌 |
+
+默认使用“本地 → 软件”，已有设置会自动补齐默认值。切换模式保留各自的软件路径、服务地址和令牌；只有当前模式的连接信息会传给求解工具。选择服务模式后不会启动本地 LS-DYNA。前处理和后处理仍使用本机配置的 HyperWorks，与求解位置独立。
+
+“测试连接”只发送健康检查，不提交求解任务；服务地址和令牌在保存时校验。仅使用模型对话时，软件路径可以留空。
+
+求解服务需实现以下 CAE Agent HTTP 接口（服务本身需另行部署，本项目不自动安装求解服务）：
+
+- `GET <服务地址>/health`：返回 HTTP 200 和 `{"status":"ok"}`。
+- `POST <服务地址>/solve`：接受以下 JSON，**求解完成后**返回结果；服务地址可包含路径前缀。
+- 配置访问令牌时，以上请求携带 `Authorization: Bearer <令牌>`。
+
+```json
+{
+  "solver": "lsdyna",
+  "keyword_file": "D:\\shared_jobs\\airbag\\main.k",
+  "ncpu": 8,
+  "memory": "4g",
+  "output_dir": "D:\\shared_jobs\\airbag\\results"
+}
+```
+
+`output_dir` 可省略，由服务选择默认输出目录。服务返回格式如下，`status` 必填，其他字段可选；`status` 支持 `ok`、`warning`、`error`。失败时可通过 `message` 或 `log` 返回原因。排队或执行中的任务需要由服务适配为完成后的同步结果，不能直接返回任务 ID 代替求解结果。
+
+```json
+{
+  "status": "ok",
+  "exitCode": 0,
+  "d3plot": "D:\\shared_jobs\\airbag\\results\\d3plot",
+  "logFile": "D:\\shared_jobs\\airbag\\results\\messag",
+  "log": "Normal termination"
+}
+```
+
+服务模式中的模型、INCLUDE 引用文件和输出目录路径均由求解服务解释，客户端不会要求这些路径在本机存在，也不会自动上传模型或下载结果。跨机器使用时需配置共享存储，或由服务适配文件路径；在本机后处理之前，结果必须能被本机访问。请求超时或断线后应先检查服务端任务状态，客户端不会自动重试提交任务。
+
+直接运行 MCP/dsh 时，也可通过环境变量选择模式：`CAE_SOLVER_LOCATION=local|server`、`CAE_LOCAL_SOLVER_TYPE=software|service`、`CAE_SOLVER_SERVICE_URL`、`CAE_SOLVER_SERVICE_TOKEN`。地址填写服务根地址，不包含末尾的 `/health` 或 `/solve`；桌面设置优先于启动环境。
 
 ### 一键打包 Windows 压缩包和安装包
 
@@ -158,7 +204,7 @@ pnpm dist:win:installer
 构建环境要求 Node.js >= 24.9.0 和 pnpm 10.x，支持在 macOS 或 Windows 上构建 Windows x64 版本。
 脚本会自动构建项目、按锁文件安装 Windows 后台依赖，并内置 Node.js 24.14.0 和 uv；同时生成两个版本时只准备一次运行环境。
 应用适用于 Windows 10/11 x64，使用时无需安装 Node.js 或 pnpm。
-首次启动填写自己的模型密钥。使用仿真功能仍需本机安装 HyperWorks、LS-DYNA 并配置许可证；首次启用 Python 工具需联网下载环境和依赖。
+首次启动填写自己的模型密钥。本机前后处理需安装 HyperWorks 并配置许可证；本地软件求解还需安装 LS-DYNA 并配置许可证，也可连接另行部署的本地或远程求解服务。首次启用 Python 工具需联网下载环境和依赖。
 
 ## 项目结构
 

@@ -2,35 +2,16 @@ import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { DEFAULT_MODEL, parseModelSettings } from './model-settings'
+import { DEFAULT_SOLVER_SETTINGS, parseSimulationSettings, type SimulationSettings } from './simulation-settings'
 
-export interface CaeSettings {
-  hmbatch: string
-  hyperview: string
-  lsdyna: string
-  workdir: string
-  hyperworksHome: string
+export interface CaeSettings extends SimulationSettings {
   apiKey: string
   llmBaseUrl: string
   model: string
 }
 
-export const SIMULATION_FIELDS = ['hyperworksHome', 'hmbatch', 'hyperview', 'lsdyna', 'workdir'] as const
-export type SimulationSettings = Pick<CaeSettings, typeof SIMULATION_FIELDS[number]>
-
-export function parseSimulationSettings(raw: unknown): SimulationSettings {
-  if (!raw || typeof raw !== 'object') throw new Error('仿真配置格式无效。')
-  const settings = {} as SimulationSettings
-  for (const field of SIMULATION_FIELDS) {
-    const value = (raw as Record<string, unknown>)[field]
-    if (typeof value !== 'string' || value.includes('\0') || value.length > 32768) {
-      throw new Error('仿真路径格式无效，请重新填写。')
-    }
-    settings[field] = value.trim()
-  }
-  return settings
-}
-
 const DEFAULTS: CaeSettings = {
+  ...DEFAULT_SOLVER_SETTINGS,
   hmbatch: 'C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hmbatch.exe',
   hyperview: 'C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hw.exe',
   lsdyna: 'C:\\LSTC\\ls971_s_R13.1_winx64_ifort131.exe',

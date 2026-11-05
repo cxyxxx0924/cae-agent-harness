@@ -40,7 +40,7 @@ const TOOLS = [
   },
   {
     name: 'lsdyna_solve',
-    description: 'Run LS-DYNA explicit dynamics solver on a keyword file. Returns exit code, solver progress, and output file paths.',
+    description: 'Run LS-DYNA using the configured backend: local software, local solver service, or server. In service mode, input and output paths belong to the solver service filesystem. Returns solver status, backend, progress, and output paths.',
     inputSchema: zodToJsonSchema(SolveSchema),
     handler: (args: unknown) => solveLsDyna(SolveSchema.parse(args)),
   },

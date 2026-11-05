@@ -28,5 +28,11 @@ export const CAE_CONFIG = {
   lsdyna: process.env.CAE_LSDYNA ?? raw.windows?.lsdyna
     ?? 'C:\\LSTC\\ls971_s_R13.1_winx64_ifort131.exe',
   workdir: process.env.CAE_WORKDIR ?? raw.workdir ?? 'D:\\cae_projects\\airbag',
+  solver: {
+    location: process.env.CAE_SOLVER_LOCATION || 'local',
+    localType: process.env.CAE_LOCAL_SOLVER_TYPE || 'software',
+    serviceUrl: process.env.CAE_SOLVER_SERVICE_URL ?? '',
+    serviceToken: process.env.CAE_SOLVER_SERVICE_TOKEN ?? '',
+  },
   tclDir: resolve(__dirname, 'tcl'),
 } as const

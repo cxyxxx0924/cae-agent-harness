@@ -16,6 +16,9 @@ contextBridge.exposeInMainWorld('caeSettings', {
   checkPaths: (paths: Record<string, string>) =>
     ipcRenderer.invoke('settings:check-paths', paths),
 
+  checkService: (settings: unknown) =>
+    ipcRenderer.invoke('settings:check-service', settings),
+
   onSaved: (cb: () => void) => {
     ipcRenderer.on('settings:saved', () => cb())
   },

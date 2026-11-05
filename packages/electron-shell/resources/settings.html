@@ -110,8 +110,9 @@
     align-items: center;
   }
 
-  .input-row input {
+  .input-row input, .input-row select {
     flex: 1;
+    min-width: 0;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 6px;
@@ -122,7 +123,8 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  .input-row input:focus { border-color: var(--accent); }
+  .input-row input:focus, .input-row select:focus { border-color: var(--accent); }
+  .input-row select { font-family: inherit; }
   .input-row input[type="password"] { font-family: inherit; }
 
   .browse-btn {
@@ -169,6 +171,8 @@
     color: var(--muted);
     margin-top: 4px;
   }
+
+  [hidden] { display: none !important; }
 
   footer {
     padding: 14px 24px;
@@ -221,7 +225,7 @@
 
   <!-- First-run banner -->
   <div class="first-run-banner" id="firstRunBanner">
-    🎉 首次启动 — 请先填写必要路径，保存后 Agent 将自动启动
+    🎉 首次启动 — 请先填写模型配置；仿真软件和求解器可以稍后配置
   </div>
 
   <!-- Main form -->
@@ -276,7 +280,7 @@
       <div class="section-title">HyperWorks 路径</div>
 
       <div class="field">
-        <label>HyperWorks 安装根目录<span class="required">*</span>（HYPERWORKS_HOME）</label>
+        <label>HyperWorks 安装根目录（HYPERWORKS_HOME）</label>
         <div class="input-row">
           <input type="text" id="hyperworksHome" placeholder="C:\Altair\2023">
           <button class="browse-btn" data-browse-dir="hyperworksHome">浏览...</button>
@@ -286,7 +290,7 @@
       </div>
 
       <div class="field">
-        <label>hmbatch.exe 路径<span class="required">*</span>（CAE_HMBATCH）</label>
+        <label>hmbatch.exe 路径（CAE_HMBATCH）</label>
         <div class="input-row">
           <input type="text" id="hmbatch" placeholder="C:\Altair\2023\hwdesktop\hw\bin\win64\hmbatch.exe">
           <button class="browse-btn" data-browse-exe="hmbatch">浏览...</button>
@@ -309,13 +313,66 @@
       <div class="section-title">LS-DYNA 求解器</div>
 
       <div class="field">
-        <label>LS-DYNA 可执行文件<span class="required">*</span>（CAE_LSDYNA）</label>
+        <label for="solverLocation">求解位置</label>
+        <div class="input-row">
+          <select id="solverLocation">
+            <option value="local">本地 — 在当前电脑上运行求解</option>
+            <option value="server">服务端 — 连接远程求解服务</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="localSolverOptions">
+        <label for="localSolverType">本地求解方式</label>
+        <div class="input-row">
+          <select id="localSolverType">
+            <option value="software">软件 — 直接运行已安装的 LS-DYNA</option>
+            <option value="service">求解服务 — 连接本机运行的求解服务</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field" id="solverSoftwareFields">
+        <label for="lsdyna">LS-DYNA 可执行文件（CAE_LSDYNA）</label>
         <div class="input-row">
           <input type="text" id="lsdyna" placeholder="C:\LSTC\ls971_s_R13.1_winx64_ifort131.exe">
           <button class="browse-btn" data-browse-exe="lsdyna">浏览...</button>
           <div class="status-icon" id="st-lsdyna">—</div>
         </div>
       </div>
+
+      <div id="solverServerFields" hidden>
+        <div class="field">
+          <label for="solverServerUrl">服务端地址</label>
+          <div class="input-row">
+            <input type="url" id="solverServerUrl" placeholder="https://solver.example.com" spellcheck="false">
+          </div>
+        </div>
+        <div class="field">
+          <label for="solverServerToken">访问令牌（可选）</label>
+          <div class="input-row">
+            <input type="password" id="solverServerToken" placeholder="服务未启用认证时留空" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <div id="solverLocalServiceFields" hidden>
+        <div class="field">
+          <label for="solverLocalServiceUrl">本地求解服务地址</label>
+          <div class="input-row">
+            <input type="url" id="solverLocalServiceUrl" placeholder="http://127.0.0.1:8000" spellcheck="false">
+          </div>
+        </div>
+        <div class="field">
+          <label for="solverLocalServiceToken">访问令牌（可选）</label>
+          <div class="input-row">
+            <input type="password" id="solverLocalServiceToken" placeholder="服务未启用认证时留空" autocomplete="off">
+          </div>
+        </div>
+      </div>
+
+      <button class="browse-btn" id="btnCheckService" hidden>测试连接</button>
+      <div class="hint" id="solverHint"></div>
     </div>
 
     <!-- 工作目录 -->
@@ -363,6 +420,28 @@ function setMsg(text, cls) {
 const EXE_FIELDS = ['hmbatch', 'hyperview', 'lsdyna']
 const DIR_FIELDS = ['hyperworksHome', 'workdir']
 const PATH_FIELDS = [...EXE_FIELDS, ...DIR_FIELDS]
+const SOLVER_FIELDS = ['solverLocation', 'localSolverType', 'solverServerUrl', 'solverServerToken', 'solverLocalServiceUrl', 'solverLocalServiceToken']
+
+function usesSolverService() {
+  return val('solverLocation') === 'server' || val('localSolverType') === 'service'
+}
+
+function updateSolverMode() {
+  const server = val('solverLocation') === 'server'
+  const service = usesSolverService()
+  document.getElementById('localSolverOptions').hidden = server
+  document.getElementById('solverSoftwareFields').hidden = service
+  document.getElementById('solverServerFields').hidden = !server
+  document.getElementById('solverLocalServiceFields').hidden = server || !service
+  document.getElementById('btnCheckService').hidden = !service
+  document.getElementById('solverHint').textContent = service
+    ? '模型及其引用文件需能被求解服务访问，结果路径由服务返回。本机无需安装求解器；前后处理软件按需配置。'
+    : '选择本机已安装的求解器；仅使用助手时可以留空。'
+}
+
+function simulationValues() {
+  return Object.fromEntries([...PATH_FIELDS, ...SOLVER_FIELDS].map(id => [id, val(id)]))
+}
 
 // ── Load on startup ────────────────────────────────────────────────────────
 async function init() {
@@ -375,6 +454,11 @@ async function init() {
   setVal('hyperview',     s.hyperview)
   setVal('lsdyna',        s.lsdyna)
   setVal('workdir',       s.workdir)
+  SOLVER_FIELDS.forEach(id => setVal(id, s[id]))
+  setVal('solverLocation', s.solverLocation || 'local')
+  setVal('localSolverType', s.localSolverType || 'software')
+  setVal('solverLocalServiceUrl', s.solverLocalServiceUrl ?? 'http://127.0.0.1:8000')
+  updateSolverMode()
 
   // Show first-run banner if apiKey is empty
   if (!s.apiKey) {
@@ -387,9 +471,10 @@ async function init() {
 // ── Check all paths ────────────────────────────────────────────────────────
 async function checkPaths() {
   const paths = {}
-  PATH_FIELDS.forEach(id => { paths[id] = val(id) })
+  const activeFields = PATH_FIELDS.filter(id => id !== 'lsdyna' || !usesSolverService())
+  activeFields.forEach(id => { paths[id] = val(id) })
   const results = await api.checkPaths(paths)
-  PATH_FIELDS.forEach(id => {
+  activeFields.forEach(id => {
     const v = val(id)
     if (!v) { setSt(id, '—'); return }
     setSt(id, results[id] ? '✅' : '❌')
@@ -438,6 +523,27 @@ PATH_FIELDS.forEach(id => {
   })
 })
 
+for (const id of ['solverLocation', 'localSolverType']) {
+  document.getElementById(id).addEventListener('change', () => {
+    updateSolverMode()
+    setMsg('')
+  })
+}
+
+document.getElementById('btnCheckService').addEventListener('click', async () => {
+  const button = document.getElementById('btnCheckService')
+  button.disabled = true
+  setMsg('正在连接求解服务…')
+  try {
+    const result = await api.checkService(simulationValues())
+    setMsg(result.message, result.valid ? 'ok' : 'err')
+  } catch (error) {
+    setMsg(error.message, 'err')
+  } finally {
+    button.disabled = false
+  }
+})
+
 // ── Check button ───────────────────────────────────────────────────────────
 document.getElementById('btnCheck').addEventListener('click', async () => {
   setMsg('正在检查路径…')
@@ -455,14 +561,10 @@ document.getElementById('btnSave').addEventListener('click', async () => {
   }
 
   const settings = {
+    ...simulationValues(),
     apiKey,
     llmBaseUrl:     val('llmBaseUrl'),
     model:          val('model'),
-    hyperworksHome: val('hyperworksHome'),
-    hmbatch:        val('hmbatch'),
-    hyperview:      val('hyperview'),
-    lsdyna:         val('lsdyna'),
-    workdir:        val('workdir'),
   }
 
   try {
