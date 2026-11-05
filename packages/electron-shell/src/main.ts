@@ -31,6 +31,10 @@ function dshBin(): string {
   throw new Error('Cannot locate @deepseek-ai/dsh binary. Run pnpm install first.')
 }
 
+function projectRoot(): string {
+  return resourcePath()
+}
+
 function profilePath(): string {
   return resourcePath('config', 'cae-airbag.cordis.yml')
 }
@@ -71,6 +75,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   const profile = profilePath()
   const env: NodeJS.ProcessEnv = {
     ...process.env,
+    ELECTRON_RUN_AS_NODE: '1',
     DSH_PORT:           String(DSH_PORT),
     DSH_NO_OPEN_BROWSER: '1',
     // Inject settings from store, allowing env overrides to take precedence
@@ -87,10 +92,12 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   for (const key of Object.keys(env) as (keyof NodeJS.ProcessEnv)[]) {
     if (env[key] === '') delete env[key]
   }
-  const proc = spawn(process.execPath, [bin, '--profile', profile], {
+  const proc = spawn('node', [bin, 'web', '--patch', profile, '--no-open'], {
     env,
+    cwd: projectRoot(),
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
+    shell: false,
   })
   proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[dsh] ${d}`))
   proc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[dsh] ${d}`))
