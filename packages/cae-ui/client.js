@@ -11,6 +11,103 @@ window.__ModuleLoader__.load({
     ]
     const element = createElement
 
+    function ModelSettings() {
+      const api = window.caeModels
+      const [values, setValues] = useState(null)
+      const [models, setModels] = useState('')
+      const [busy, setBusy] = useState(false)
+      const [message, setMessage] = useState('')
+      const [failed, setFailed] = useState(false)
+
+      useEffect(() => {
+        if (!api) return
+        let active = true
+        api.load().then(settings => {
+          if (!active) return
+          setValues(settings)
+          setModels(settings.models.join('\n'))
+        }).catch(() => {
+          if (!active) return
+          setMessage('读取模型配置失败，请关闭设置后重试。')
+          setFailed(true)
+        })
+        return () => { active = false }
+      }, [])
+
+      async function run(operation) {
+        if (busy) return
+        setBusy(true)
+        setMessage('')
+        setFailed(false)
+        try {
+          await operation()
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : '操作失败，请重试。')
+          setFailed(true)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      function update(id, value) {
+        setValues(previous => ({ ...previous, [id]: value }))
+        setMessage('')
+      }
+
+      function field(id, label, type, placeholder, hint) {
+        return element('div', { className: 'cae-settings-field' },
+          element('label', { htmlFor: `cae-${id}` }, label),
+          element('div', { className: 'cae-settings-input-row' }, element('input', {
+            id: `cae-${id}`, type, value: values[id], placeholder,
+            autoComplete: 'off', spellCheck: false,
+            list: id === 'model' ? 'cae-model-options' : undefined,
+            'aria-describedby': `cae-${id}-hint`,
+            onChange: event => update(id, event.target.value),
+          })),
+          element('p', { id: `cae-${id}-hint`, className: 'cae-settings-hint' }, hint),
+        )
+      }
+
+      return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-models-title' },
+        element('h2', { id: 'cae-models-title' }, '模型'),
+        element('p', { className: 'cae-settings-intro' }, '查看和修改已保存的模型，保存后自动重启后台服务。对话中可以从输入框下方的模型菜单切换。'),
+        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中配置模型。') :
+          !values ? element('p', { role: failed ? 'alert' : 'status' }, message || '正在读取模型配置…') :
+            element('form', { onSubmit: event => {
+              event.preventDefault()
+              void run(async () => {
+                await api.save({ ...values, models: models.split('\n').map(id => id.trim()).filter(Boolean) })
+                setMessage('已保存，正在重启后台服务…')
+              })
+            } },
+              element('fieldset', { disabled: busy },
+                field('apiKey', 'API Key', 'password', values.hasApiKey ? '已保存，留空保留原密钥' : 'sk-…', '当前接口的访问密钥；本地 Ollama 可填写 ollama。'),
+                field('llmBaseUrl', 'API Base URL', 'url', 'https://api.deepseek.com/v1', '留空使用 DeepSeek。下方模型共用此接口和 API Key。'),
+                field('model', '默认模型 ID', 'text', 'deepseek-flash', '可以选择列表中的模型，也可以输入正确的模型 ID。'),
+                element('datalist', { id: 'cae-model-options' }, ...[...new Set(models.split('\n').map(id => id.trim()).filter(Boolean))].map(id => element('option', { key: id, value: id }))),
+                element('div', { className: 'cae-settings-field' },
+                  element('label', { htmlFor: 'cae-models' }, '可选模型列表'),
+                  element('div', { className: 'cae-settings-input-row' }, element('textarea', {
+                    id: 'cae-models', rows: 7, value: models, placeholder: '每行一个模型 ID', spellCheck: false,
+                    onChange: event => { setModels(event.target.value); setMessage('') },
+                  })),
+                  element('p', { className: 'cae-settings-hint' }, '可手动添加或删除，每行一个模型 ID。获取列表失败时仍可手动配置。默认模型会自动加入列表。'),
+                ),
+                element('div', { className: 'cae-settings-actions' },
+                  element('button', { type: 'button', onClick: () => void run(async () => {
+                    setMessage('正在获取模型列表…')
+                    const discovered = await api.discover(values)
+                    setModels([...new Set([...models.split('\n').map(id => id.trim()).filter(Boolean), ...discovered])].join('\n'))
+                    setMessage(`已获取 ${discovered.length} 个模型，选择默认模型后保存即可。`)
+                  }) }, '获取模型列表'),
+                  element('button', { type: 'submit', className: 'cae-settings-primary' }, busy ? '处理中…' : '保存并重启'),
+                ),
+              ),
+              element('p', { role: failed ? 'alert' : 'status', className: 'cae-settings-message', 'data-failed': failed }, message),
+            ),
+      )
+    }
+
     function SimulationSettings() {
       const api = window.caeSimulation
       const [values, setValues] = useState(null)
@@ -208,10 +305,11 @@ window.__ModuleLoader__.load({
       .cae-settings-field { margin-bottom: 22px; }
       .cae-settings-field label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
       .cae-settings-input-row { display: flex; gap: 8px; }
-      .cae-settings-input-row input { flex: 1; min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; padding: 9px 10px; font: 12px/1.5 monospace; }
+      .cae-settings-input-row input, .cae-settings-input-row textarea { flex: 1; min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; padding: 9px 10px; font: 12px/1.5 monospace; }
+      .cae-settings-input-row textarea { resize: vertical; }
       .cae-simulation-settings button { border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 8px 14px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
       .cae-simulation-settings button:hover { background: var(--dsw-alias-interactive-bg-hover); }
-      .cae-simulation-settings :is(button, input):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+      .cae-simulation-settings :is(button, input, textarea):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
       .cae-simulation-settings :disabled { opacity: .6; cursor: wait; }
       .cae-settings-hint, .cae-settings-path-status { font-size: 12px; line-height: 1.6; margin: 6px 0 0; color: var(--dsw-alias-label-tertiary); }
       .cae-settings-path-status[data-valid=true] { color: #16803c; }
@@ -238,6 +336,12 @@ window.__ModuleLoader__.load({
           order: 5,
           label: '仿真软件',
         }, SimulationSettings))
+        if (window.caeModels) ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section',
+          id: 'cae-models',
+          order: 3,
+          label: '模型',
+        }, ModelSettings))
       },
     }
   },

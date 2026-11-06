@@ -1,6 +1,8 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
-const { DEFAULT_MODEL, parseModelSettings } = require('../dist/model-settings.js')
+const { once } = require('node:events')
+const { createServer } = require('node:http')
+const { DEFAULT_MODEL, parseModelSettings, parseModelConfiguration, discoverModels } = require('../dist/model-settings.js')
 
 const validSettings = {
   apiKey: 'sk-test-only',
@@ -71,5 +73,53 @@ test('rejects missing credentials and whitespace in keys or model IDs', () => {
 test('rejects malformed IPC payloads', () => {
   for (const raw of [null, [], 'settings', {}, { ...validSettings, model: 1 }, { ...validSettings, apiKey: 'key\0' }]) {
     assert.throws(() => parseModelSettings(raw), /模型配置/)
+  }
+})
+
+test('migrates a single saved model and retains the default alongside deduplicated alternatives', () => {
+  assert.deepEqual(parseModelConfiguration(validSettings).models, ['deepseek-flash'])
+  assert.deepEqual(parseModelConfiguration({
+    ...validSettings, models: [' working-model ', 'deepseek-flash', 'working-model'],
+  }).models, ['deepseek-flash', 'working-model'])
+  for (const models of [null, 'model', [null], [''], ['bad model'], ['bad\0model'], Array(1001).fill('model')]) {
+    assert.throws(() => parseModelConfiguration({ ...validSettings, models }), /模型列表/)
+  }
+})
+
+test('discovers alternatives without requesting the unavailable default model', async t => {
+  const requests = []
+  const endpoint = createServer((request, response) => {
+    requests.push({ method: request.method, path: request.url, authorization: request.headers.authorization })
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify({ data: [{ id: 'working-model' }, { id: 'other-model' }, { id: 'working-model' }, { id: 'invalid model' }] }))
+  })
+  endpoint.listen(0, '127.0.0.1')
+  await once(endpoint, 'listening')
+  t.after(() => new Promise(resolve => endpoint.close(resolve)))
+  assert.deepEqual(await discoverModels({
+    ...validSettings, model: 'invalid model', llmBaseUrl: `http://127.0.0.1:${endpoint.address().port}/gateway/v1/`,
+  }), ['working-model', 'other-model'])
+  assert.deepEqual(requests, [{ method: 'GET', path: '/gateway/v1/models', authorization: 'Bearer sk-test-only' }])
+})
+
+test('discovery failures allow manual configuration and do not expose response secrets', async t => {
+  let status = 401
+  let body = '{"error":"private-response"}'
+  const endpoint = createServer((_request, response) => {
+    response.writeHead(status, { 'Content-Type': 'application/json' })
+    response.end(body)
+  })
+  endpoint.listen(0, '127.0.0.1')
+  await once(endpoint, 'listening')
+  t.after(() => new Promise(resolve => endpoint.close(resolve)))
+  const settings = { ...validSettings, llmBaseUrl: `http://127.0.0.1:${endpoint.address().port}` }
+  await assert.rejects(discoverModels(settings), error => {
+    assert.match(error.message, /HTTP 401/)
+    assert.equal(error.message.includes('private-response'), false)
+    return true
+  })
+  status = 200
+  for (body of ['{}', '{"data":[]}', 'not-json']) {
+    await assert.rejects(discoverModels(settings), /手动填写模型 ID/)
   }
 })

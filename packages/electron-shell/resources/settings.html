@@ -110,7 +110,7 @@
     align-items: center;
   }
 
-  .input-row input, .input-row select {
+  .input-row input, .input-row select, .input-row textarea {
     flex: 1;
     min-width: 0;
     background: var(--surface);
@@ -123,7 +123,8 @@
     outline: none;
     transition: border-color 0.15s;
   }
-  .input-row input:focus, .input-row select:focus { border-color: var(--accent); }
+  .input-row input:focus, .input-row select:focus, .input-row textarea:focus { border-color: var(--accent); }
+  .input-row textarea { resize: vertical; }
   .input-row select { font-family: inherit; }
   .input-row input[type="password"] { font-family: inherit; }
 
@@ -262,6 +263,7 @@
         <label>模型 ID（LLM_MODEL）</label>
         <div class="input-row">
           <input type="text" id="model" placeholder="deepseek-flash" spellcheck="false">
+          <datalist id="modelChoices"></datalist>
           <div class="status-icon" id="st-model">—</div>
         </div>
         <div class="preset-row">
@@ -271,7 +273,16 @@
           <button class="preset-btn" data-preset-model="qwen-plus">qwen-plus</button>
           <button class="preset-btn" data-preset-model="gpt-4o">gpt-4o</button>
         </div>
-        <div class="hint">切换 Base URL 后同步修改此字段，留空则使用 deepseek-flash；保存后将自动设为默认模型。</div>
+        <div class="hint">保存后作为默认模型；填错或不可用时，可以在对话的模型菜单中切换。</div>
+      </div>
+
+      <div class="field">
+        <label for="models">可选模型列表</label>
+        <div class="input-row">
+          <textarea id="models" rows="4" placeholder="每行一个模型 ID" spellcheck="false"></textarea>
+          <button class="browse-btn" id="btnDiscoverModels">获取模型列表</button>
+        </div>
+        <div class="hint">从当前接口获取模型，或手动填写，每行一个。保存的模型都会出现在对话菜单中；API Key 和 Base URL 为这些模型共用。</div>
       </div>
     </div>
 
@@ -449,6 +460,8 @@ async function init() {
   setVal('apiKey',        s.apiKey)
   setVal('llmBaseUrl',    s.llmBaseUrl)
   setVal('model',         s.model)
+  setVal('models',        (s.models || [s.model]).join('\n'))
+  updateModelChoices()
   setVal('hyperworksHome',s.hyperworksHome)
   setVal('hmbatch',       s.hmbatch)
   setVal('hyperview',     s.hyperview)
@@ -516,6 +529,33 @@ document.querySelectorAll('[data-preset-model]').forEach(btn => {
   })
 })
 
+function updateModelChoices() {
+  const list = document.getElementById('modelChoices')
+  list.replaceChildren(...val('models').split('\n').map(id => id.trim()).filter(Boolean).map(id => {
+    const option = document.createElement('option')
+    option.value = id
+    return option
+  }))
+  document.getElementById('model').setAttribute('list', 'modelChoices')
+}
+
+document.getElementById('models').addEventListener('input', updateModelChoices)
+document.getElementById('btnDiscoverModels').addEventListener('click', async () => {
+  const button = document.getElementById('btnDiscoverModels')
+  button.disabled = true
+  setMsg('正在获取模型列表…')
+  try {
+    const models = await api.discoverModels({ apiKey: val('apiKey'), llmBaseUrl: val('llmBaseUrl'), model: val('model') })
+    setVal('models', [...new Set([...val('models').split('\n').map(id => id.trim()).filter(Boolean), ...models])].join('\n'))
+    updateModelChoices()
+    setMsg(`已获取 ${models.length} 个模型，可修改上方默认模型后保存。`, 'ok')
+  } catch (error) {
+    setMsg(error.message, 'err')
+  } finally {
+    button.disabled = false
+  }
+})
+
 // ── Live check on input change ─────────────────────────────────────────────
 PATH_FIELDS.forEach(id => {
   document.getElementById(id).addEventListener('input', () => {
@@ -565,6 +605,7 @@ document.getElementById('btnSave').addEventListener('click', async () => {
     apiKey,
     llmBaseUrl:     val('llmBaseUrl'),
     model:          val('model'),
+    models:         val('models').split('\n').map(id => id.trim()).filter(Boolean),
   }
 
   try {

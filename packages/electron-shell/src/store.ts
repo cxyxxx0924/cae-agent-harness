@@ -1,14 +1,10 @@
 import { app } from 'electron'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { DEFAULT_MODEL, parseModelSettings } from './model-settings'
+import { DEFAULT_MODEL, parseModelConfiguration, type ModelConfiguration } from './model-settings'
 import { DEFAULT_SOLVER_SETTINGS, parseSimulationSettings, type SimulationSettings } from './simulation-settings'
 
-export interface CaeSettings extends SimulationSettings {
-  apiKey: string
-  llmBaseUrl: string
-  model: string
-}
+export interface CaeSettings extends SimulationSettings, ModelConfiguration {}
 
 const DEFAULTS: CaeSettings = {
   ...DEFAULT_SOLVER_SETTINGS,
@@ -20,6 +16,7 @@ const DEFAULTS: CaeSettings = {
   apiKey: '',
   llmBaseUrl: '',
   model: DEFAULT_MODEL,
+  models: [DEFAULT_MODEL],
 }
 
 function storePath(): string {
@@ -30,16 +27,17 @@ export function loadSettings(): CaeSettings {
   try {
     const p = storePath()
     if (existsSync(p)) {
-      return { ...DEFAULTS, ...JSON.parse(readFileSync(p, 'utf8')) } as CaeSettings
+      const saved = JSON.parse(readFileSync(p, 'utf8'))
+      return { ...DEFAULTS, ...saved, models: saved.models ?? [saved.model || DEFAULT_MODEL] } as CaeSettings
     }
   } catch {
     // ignore corrupt file — fall through to defaults
   }
-  return { ...DEFAULTS }
+  return { ...DEFAULTS, models: [...DEFAULTS.models] }
 }
 
 export function saveSettings(raw: unknown): void {
-  const settings: CaeSettings = { ...parseModelSettings(raw), ...parseSimulationSettings(raw) }
+  const settings: CaeSettings = { ...parseModelConfiguration(raw), ...parseSimulationSettings(raw) }
   writeFileSync(storePath(), JSON.stringify(settings, null, 2), 'utf8')
 }
 

@@ -6,7 +6,7 @@ import { existsSync, statSync } from 'node:fs'
 import { checkDshPort, waitForDsh } from './dsh-startup'
 import { RuntimeLog } from './runtime-log'
 import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
-import { parseModelSettings } from './model-settings'
+import { discoverModels, parseModelConfiguration } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
 import {
   preparePythonMcpEnvironments,
@@ -66,7 +66,7 @@ let runtimeLog: RuntimeLog
 
 // ── dsh lifecycle ─────────────────────────────────────────────────────────
 function spawnDsh(settings: CaeSettings): ChildProcess {
-  const modelSettings = parseModelSettings(settings)
+  const modelSettings = parseModelConfiguration(settings)
   const simulationSettings = parseSimulationSettings(settings)
   const simulationEnv = simulationEnvironment(simulationSettings)
   const pythonMcpEnv = pythonMcpFeatureEnvironment(simulationSettings)
@@ -78,10 +78,12 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     ELECTRON_RUN_AS_NODE: '1',
     DSH_PORT:           String(DSH_PORT),
     DSH_NO_OPEN_BROWSER: '1',
+    CAE_DESKTOP:        '1',
     // Saved desktop settings take precedence over the launch environment.
     DEEPSEEK_API_KEY:   modelSettings.apiKey,
-    LLM_BASE_URL:       modelSettings.llmBaseUrl || process.env.LLM_BASE_URL || '',
+    LLM_BASE_URL:       modelSettings.llmBaseUrl || 'https://api.deepseek.com/v1',
     LLM_MODEL:          modelSettings.model,
+    CAE_MODELS:         JSON.stringify(modelSettings.models),
     ...simulationEnv,
     ...pythonMcpEnv,
   }
@@ -162,7 +164,18 @@ async function stopDsh(): Promise<void> {
 async function startDsh(): Promise<void> {
   await checkDshPort(DSH_PORT)
   if (quitting) return
-  dshProcess = spawnDsh(loadSettings())
+  let settings = loadSettings()
+  if (settings.models.length <= 1) {
+    try {
+      const models = await discoverModels(settings)
+      settings = { ...settings, models: [...new Set([settings.model, ...models])] }
+      saveSettings(settings)
+    } catch {
+      runtimeLog.write('main', 'Model discovery unavailable; saved models remain available and can be edited in Settings.')
+    }
+  }
+  if (quitting) return
+  dshProcess = spawnDsh(settings)
   try {
     dshUrl = await waitForDsh(dshProcess, DSH_URL, STARTUP_TIMEOUT_MS)
     runtimeLog.write('main', 'dsh authentication succeeded; opening chat')
@@ -227,9 +240,34 @@ function registerIpc(): void {
   function requireMainWindow(event: Electron.IpcMainInvokeEvent): void {
     const url = new URL(event.senderFrame?.url ?? 'about:blank')
     if (event.sender !== mainWindow?.webContents || url.origin !== DSH_URL) {
-      throw new Error('请在 CAE Agent 主窗口中配置仿真软件。')
+      throw new Error('请在 CAE Agent 主窗口中修改配置。')
     }
   }
+
+  function modelInput(raw: unknown): unknown {
+    if (!raw || typeof raw !== 'object') return raw
+    const values = raw as Record<string, unknown>
+    return { ...values, apiKey: values.apiKey === '' ? loadSettings().apiKey : values.apiKey }
+  }
+
+  ipcMain.handle('models:load', event => {
+    requireMainWindow(event)
+    const settings = loadSettings()
+    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, apiKey: '', hasApiKey: Boolean(settings.apiKey) }
+  })
+
+  ipcMain.handle('models:save', async (event, raw: unknown) => {
+    requireMainWindow(event)
+    if (dshRestart) throw new Error('后台服务正在重启，请稍后重试。')
+    const settings = parseModelConfiguration(modelInput(raw))
+    saveSettings({ ...loadSettings(), ...settings })
+    await restartDsh()
+  })
+
+  ipcMain.handle('models:discover', (event, raw: unknown) => {
+    requireMainWindow(event)
+    return discoverModels(modelInput(raw))
+  })
 
   ipcMain.handle('simulation:load', event => {
     requireMainWindow(event)
@@ -279,6 +317,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('settings:load', () => loadSettings())
+  ipcMain.handle('settings:discover-models', (_event, raw: unknown) => discoverModels(raw))
   ipcMain.handle('settings:check-service', (_event, raw: unknown) => checkSolverService(raw))
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
@@ -423,7 +462,7 @@ app.whenReady().then(async () => {
 
   while (true) {
     try {
-      parseModelSettings(loadSettings())
+      parseModelConfiguration(loadSettings())
       break
     } catch (error) {
       const { response } = await dialog.showMessageBox({

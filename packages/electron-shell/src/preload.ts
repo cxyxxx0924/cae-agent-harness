@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('caeSettings', {
   save: (s: unknown) =>
     ipcRenderer.invoke('settings:save', s),
 
+  discoverModels: (s: unknown) =>
+    ipcRenderer.invoke('settings:discover-models', s),
+
   browseExe: (title: string) =>
     ipcRenderer.invoke('settings:browse-exe', title),
 

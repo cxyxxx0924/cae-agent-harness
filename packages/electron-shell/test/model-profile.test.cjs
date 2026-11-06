@@ -7,7 +7,7 @@ const { tmpdir } = require('node:os')
 const { join, resolve } = require('node:path')
 const { test } = require('node:test')
 
-async function startModelRuntime(t, model) {
+async function startModelRuntime(t, model, models = []) {
   const temporaryHome = await mkdtemp(join(tmpdir(), 'cae-model-test-'))
   const previous = {}
   let ctx
@@ -33,6 +33,11 @@ async function startModelRuntime(t, model) {
       authorization: request.headers.authorization,
       body: JSON.parse(Buffer.concat(chunks).toString('utf8')),
     })
+    if (received.at(-1).body.model === 'missing-model') {
+      response.writeHead(404, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: { message: 'model does not exist', type: 'invalid_request_error' } }))
+      return
+    }
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
     response.end([
       `data: ${JSON.stringify({
@@ -62,6 +67,8 @@ async function startModelRuntime(t, model) {
     DEEPSEEK_API_KEY: 'sk-cae-model-test-only',
     LLM_BASE_URL: `http://127.0.0.1:${endpoint.address().port}/v1`,
     LLM_MODEL: model,
+    CAE_MODELS: JSON.stringify(models),
+    CAE_DESKTOP: '1',
     HYPERWORKS_HOME: '',
     CAE_LSDYNA: '',
   }
@@ -115,6 +122,26 @@ test('saved model is advertised, selected by default and sent through Chat Compl
   assert.equal(received[0].path, '/v1/chat/completions')
   assert.equal(received[0].authorization, 'Bearer sk-cae-model-test-only')
   assert.equal(received[0].body.model, 'configured-model')
+})
+
+test('an unavailable initial model can be replaced in the same session by another saved model', { timeout: 30000 }, async t => {
+  const { ctx, received } = await startModelRuntime(t, 'missing-model', ['working-model', 'deepseek-flash'])
+  const catalog = await ctx.sessionController.modelCatalog()
+  assert.deepEqual(catalog.groups[0].models.map(model => model.id), ['missing-model', 'working-model', 'deepseek-flash'])
+  assert.equal(catalog.groups[0].models[1].reasoning, undefined)
+  assert.deepEqual(catalog.groups[0].models[2].reasoning.efforts.map(effort => effort.id), ['off', 'low', 'high', 'max'])
+
+  const { sessionId } = await ctx.sessionController.create({})
+  await assert.rejects(complete(ctx, catalog.default))
+  assert.equal(received.at(-1).body.model, 'missing-model')
+  const { selected } = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model: 'working-model' })
+  await complete(ctx, selected)
+  assert.equal(received.at(-1).body.model, 'working-model')
+  assert.equal(received.at(-1).body.reasoning_effort, undefined)
+  const thinking = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model: 'deepseek-flash', reasoningEffort: 'high' })
+  await complete(ctx, thinking.selected)
+  assert.equal(received.at(-1).body.thinking.type, 'enabled')
+  assert.equal(received.at(-1).body.reasoning_effort, 'high')
 })
 
 for (const model of ['deepseek-flash', 'deepseek-v4-pro']) {

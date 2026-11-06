@@ -1,5 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+contextBridge.exposeInMainWorld('caeModels', {
+  load: () => ipcRenderer.invoke('models:load'),
+  save: (settings: unknown) => ipcRenderer.invoke('models:save', settings),
+  discover: (settings: unknown) => ipcRenderer.invoke('models:discover', settings),
+})
+
 contextBridge.exposeInMainWorld('caeSimulation', {
   load: () => ipcRenderer.invoke('simulation:load'),
   save: (settings: unknown) => ipcRenderer.invoke('simulation:save', settings),
