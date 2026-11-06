@@ -5,6 +5,7 @@ import { resolve, join, delimiter } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
 import { checkDshPort, waitForDsh } from './dsh-startup'
 import { RuntimeLog } from './runtime-log'
+import { EDIT_MENU, enableEditingContextMenu } from './native-editing'
 import { loadSettings, saveSettings, saveSimulationSettings, type CaeSettings } from './store'
 import { discoverModels, modelEnvironment, parseModelConfiguration, testModels } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
@@ -299,6 +300,7 @@ function createMainWindow(): BrowserWindow {
     if (url.startsWith('http')) shell.openExternal(url)
     return { action: 'deny' }
   })
+  enableEditingContextMenu(mainWindow)
   mainWindow.on('closed', () => { mainWindow = null })
 
   const menu = Menu.buildFromTemplate([
@@ -314,6 +316,7 @@ function createMainWindow(): BrowserWindow {
         { role: 'quit', label: '退出' },
       ],
     },
+    EDIT_MENU,
     {
       label: '视图',
       submenu: [
