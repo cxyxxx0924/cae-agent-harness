@@ -1,13 +1,19 @@
-import { app, BrowserWindow, shell, Menu, Tray, nativeImage, dialog } from 'electron'
+import { app, BrowserWindow, shell, Menu, dialog } from 'electron'
 import { ipcMain } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve, join, delimiter } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
-import { createInterface } from 'node:readline'
-import http from 'node:http'
+import { checkDshPort, waitForDsh } from './dsh-startup'
+import { RuntimeLog } from './runtime-log'
 import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
 import { parseModelSettings } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
+import {
+  preparePythonMcpEnvironments,
+  pythonMcpFeatureEnvironment,
+  stopPythonMcpPreparations,
+  uvEnvironment,
+} from './python-mcp'
 
 // ── Constants ─────────────────────────────────────────────────────────────
 const DSH_PORT          = Number(process.env.DSH_PORT ?? 3080)
@@ -54,61 +60,19 @@ let startupComplete = false
 let dshRestart: Promise<void> | null = null
 let mainWindow:    BrowserWindow | null = null
 let settingsWindow: BrowserWindow | null = null
+let launchingDsh = false
+let quitting = false
+let runtimeLog: RuntimeLog
 
 // ── dsh lifecycle ─────────────────────────────────────────────────────────
-function waitForDsh(proc: ChildProcess, timeoutMs: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const output = createInterface({ input: proc.stdout! })
-    let request: http.ClientRequest | undefined
-    let settled = false
-    const timeout = setTimeout(() => {
-      finish(new Error(`dsh did not start within ${timeoutMs}ms`))
-    }, timeoutMs)
-
-    function finish(error?: Error, url?: string): void {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      output.close()
-      proc.off('error', onError)
-      proc.off('exit', onExit)
-      request?.destroy()
-      if (error) reject(error)
-      else resolve(url!)
-    }
-
-    function onError(error: Error): void {
-      finish(error)
-    }
-
-    function onExit(code: number | null, signal: NodeJS.Signals | null): void {
-      finish(new Error(`dsh exited before startup completed (${signal ?? code}). Check the dsh logs for details.`))
-    }
-
-    output.on('line', (line: string) => {
-      const match = /^dsh web: (http:\/\/\S+)$/.exec(line)
-      if (!match || request) return
-      const url = new URL(match[1])
-      if (url.origin !== DSH_URL || url.pathname !== '/' || !url.searchParams.get('token')) return
-      request = http.get(url, response => {
-        const authenticated = response.statusCode === 303 && Boolean(response.headers['set-cookie']?.length)
-        response.resume()
-        if (authenticated) finish(undefined, url.href)
-        else finish(new Error(`dsh authentication failed (HTTP ${response.statusCode}).`))
-      })
-      request.setTimeout(5000, () => request?.destroy(new Error('dsh authentication request timed out.')))
-      request.on('error', onError)
-    })
-    proc.once('error', onError)
-    proc.once('exit', onExit)
-  })
-}
-
 function spawnDsh(settings: CaeSettings): ChildProcess {
   const modelSettings = parseModelSettings(settings)
-  const simulationEnv = simulationEnvironment(parseSimulationSettings(settings))
+  const simulationSettings = parseSimulationSettings(settings)
+  const simulationEnv = simulationEnvironment(simulationSettings)
+  const pythonMcpEnv = pythonMcpFeatureEnvironment(simulationSettings)
   const bin     = dshBin()
   const profile = profilePath()
+  runtimeLog.setSecrets([modelSettings.apiKey, simulationSettings.solverServerToken, simulationSettings.solverLocalServiceToken])
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
@@ -119,6 +83,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     LLM_BASE_URL:       modelSettings.llmBaseUrl || process.env.LLM_BASE_URL || '',
     LLM_MODEL:          modelSettings.model,
     ...simulationEnv,
+    ...pythonMcpEnv,
   }
   const nodeExecutable = IS_PACKAGED ? resourcePath('node', 'node.exe') : 'node'
   if (IS_PACKAGED) {
@@ -129,26 +94,38 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     }
     env.PATH = [resourcePath('node'), resourcePath('uv'), inheritedPath].join(delimiter)
     env.UV_CACHE_DIR = join(app.getPath('userData'), 'uv-cache')
+    env.CAE_UV_INDEX_URL = process.env.CAE_UV_INDEX_URL || process.env.UV_INDEX_URL || ''
   }
   // Remove empty-string entries to avoid overriding child-process defaults
   for (const key of Object.keys(env)) {
     if (env[key] === '' && !(key in simulationEnv)) delete env[key]
   }
+  const uvEnv = uvEnvironment(env, IS_PACKAGED && process.platform === 'win32')
+  runtimeLog.write('main', `Starting dsh: node=${nodeExecutable}; cwd=${projectRoot()}; profile=${profile}; port=${DSH_PORT}`)
   const proc = spawn(nodeExecutable, [bin, 'web', '--patch', profile, '--no-open', '--host', '127.0.0.1', '--port', String(DSH_PORT)], {
-    env,
+    env: uvEnv,
     cwd: projectRoot(),
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', process.platform === 'win32' ? 'overlapped' : 'pipe', process.platform === 'win32' ? 'overlapped' : 'pipe'],
     detached: false,
     shell: false,
     windowsHide: true,
   })
-  proc.stdout?.on('data', (d: Buffer) => process.stdout.write(`[dsh] ${d}`))
-  proc.stderr?.on('data', (d: Buffer) => process.stderr.write(`[dsh] ${d}`))
+  runtimeLog.capture(proc)
+  proc.once('spawn', () => runtimeLog.write('main', `dsh spawned (pid=${proc.pid})`))
+  const uvExecutable = IS_PACKAGED
+    ? join(resourcePath('uv'), process.platform === 'win32' ? 'uv.exe' : 'uv')
+    : 'uv'
+  preparePythonMcpEnvironments(
+    simulationSettings,
+    projectRoot(),
+    uvExecutable,
+    uvEnv,
+  )
   proc.on('error', (error) => {
-    process.stderr.write(`[dsh] ${error.message}\n`)
+    runtimeLog.write('main', error.message)
   })
   proc.on('exit', (code) => {
-    process.stderr.write(`[dsh] exited with code ${code}\n`)
+    runtimeLog.write('main', `dsh exited with code ${code}`)
     if (dshProcess !== proc) return
     dshProcess = null
     dshUrl = null
@@ -183,10 +160,14 @@ async function stopDsh(): Promise<void> {
 }
 
 async function startDsh(): Promise<void> {
+  await checkDshPort(DSH_PORT)
+  if (quitting) return
   dshProcess = spawnDsh(loadSettings())
   try {
-    dshUrl = await waitForDsh(dshProcess, STARTUP_TIMEOUT_MS)
+    dshUrl = await waitForDsh(dshProcess, DSH_URL, STARTUP_TIMEOUT_MS)
+    runtimeLog.write('main', 'dsh authentication succeeded; opening chat')
   } catch (error) {
+    runtimeLog.write('main', error instanceof Error ? error.message : String(error))
     await stopDsh()
     throw error
   }
@@ -197,6 +178,7 @@ async function restartDsh(): Promise<void> {
   dshRestart = (async () => {
     await stopDsh()
     await startDsh()
+    if (quitting) return
     if (mainWindow && !mainWindow.isDestroyed()) {
       await mainWindow.loadURL(dshUrl!)
     }
@@ -300,6 +282,7 @@ function registerIpc(): void {
   ipcMain.handle('settings:check-service', (_event, raw: unknown) => checkSolverService(raw))
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
+    if (launchingDsh && !startupComplete) throw new Error('后台服务正在启动，请稍后保存设置。')
     saveSettings(raw)
     // Close settings window, then restart dsh + reload main window
     settingsWindow?.webContents.send('settings:saved')
@@ -308,8 +291,7 @@ function registerIpc(): void {
     try {
       await restartDsh()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      dialog.showErrorBox('CAE Agent — 重启失败', msg)
+      dialog.showErrorBox('CAE Agent — 重启失败', runtimeLog.failure(err))
     }
   })
 
@@ -347,8 +329,7 @@ function registerIpc(): void {
 }
 
 // ── Main window ────────────────────────────────────────────────────────────
-function createMainWindow(): void {
-  if (!dshUrl) return
+function createMainWindow(): BrowserWindow {
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -364,7 +345,9 @@ function createMainWindow(): void {
     backgroundColor: '#0f172a',
     show: false,
   })
-  mainWindow.loadURL(dshUrl)
+  mainWindow.loadFile(join(__dirname, '..', 'resources', 'starting.html')).catch(error => {
+    runtimeLog.write('main', `Cannot load startup page: ${error.message}`)
+  })
   mainWindow.webContents.on('page-title-updated', event => {
     event.preventDefault()
     mainWindow?.setTitle('CAE Agent')
@@ -406,10 +389,25 @@ function createMainWindow(): void {
     },
   ])
   Menu.setApplicationMenu(menu)
+  return mainWindow
 }
 
 // ── App lifecycle ──────────────────────────────────────────────────────────
+const ownsInstance = app.requestSingleInstanceLock()
+if (!ownsInstance) app.quit()
+
+app.on('second-instance', () => {
+  const win = settingsWindow ?? mainWindow
+  if (!win || win.isDestroyed()) return
+  if (win.isMinimized()) win.restore()
+  win.show()
+  win.focus()
+})
+
 app.whenReady().then(async () => {
+  if (!ownsInstance || quitting) return
+  runtimeLog = new RuntimeLog(join(app.getPath('userData'), 'logs', 'startup.log'))
+  runtimeLog.write('main', `CAE Agent ${app.getVersion()}; platform=${process.platform}; packaged=${IS_PACKAGED}`)
   registerIpc()
 
   const firstRun = isFirstRun()
@@ -444,26 +442,36 @@ app.whenReady().then(async () => {
   }
 
   try {
+    launchingDsh = true
+    const win = createMainWindow()
     await startDsh()
-    createMainWindow()
+    if (quitting) return
+    if (!win.isDestroyed()) await win.loadURL(dshUrl!)
     startupComplete = true
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    dialog.showErrorBox('CAE Agent — 启动失败', msg)
+    if (quitting) return
+    runtimeLog.write('main', err instanceof Error ? err.message : String(err))
+    dialog.showErrorBox('CAE Agent — 启动失败', runtimeLog.failure(err))
     app.quit()
+  } finally {
+    launchingDsh = false
   }
 })
 
 app.on('window-all-closed', () => {
-  if (startupComplete && process.platform !== 'darwin') app.quit()
+  if ((startupComplete || launchingDsh) && process.platform !== 'darwin') app.quit()
 })
 
 app.on('before-quit', () => {
+  quitting = true
+  stopPythonMcpPreparations()
   if (dshProcess && !dshProcess.killed) {
     dshProcess.kill('SIGTERM')
   }
 })
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+  if (BrowserWindow.getAllWindows().length === 0 && dshUrl) {
+    createMainWindow().loadURL(dshUrl)
+  }
 })

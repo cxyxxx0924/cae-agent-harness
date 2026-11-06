@@ -1,10 +1,10 @@
 const assert = require('node:assert/strict')
 const { spawn } = require('node:child_process')
 const { createHash } = require('node:crypto')
-const { createReadStream, createWriteStream } = require('node:fs')
-const { chmod, cp, mkdir, readFile, readdir, rm, stat, writeFile } = require('node:fs/promises')
+const { createReadStream, createWriteStream, readFileSync } = require('node:fs')
+const { chmod, cp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } = require('node:fs/promises')
 const { createRequire } = require('node:module')
-const { join, resolve, relative } = require('node:path')
+const { extname, join, resolve, relative } = require('node:path')
 const { Readable } = require('node:stream')
 const { pipeline } = require('node:stream/promises')
 const { build, Platform, Arch } = require('electron-builder')
@@ -30,10 +30,29 @@ function run(command, args, cwd = projectRoot) {
   })
 }
 
+function isNodeScript(file) {
+  const extension = extname(file).toLowerCase()
+  if (['.js', '.cjs', '.mjs'].includes(extension)) return true
+  try {
+    const prefix = readFileSync(file).subarray(0, 128).toString('utf8')
+    return /^#!.*\bnode(?:\.exe)?\b/i.test(prefix)
+  } catch {
+    return false
+  }
+}
+
+function pnpmInvocation(cli = process.env.npm_execpath) {
+  if (!cli || !/pnpm/i.test(cli)) return { command: 'pnpm', args: [] }
+  // npm_execpath may point to a native pnpm binary. Passing that file to Node
+  // makes Node parse its Mach-O/PE bytes as JavaScript and fail immediately.
+  return isNodeScript(cli)
+    ? { command: process.execPath, args: [cli] }
+    : { command: cli, args: [] }
+}
+
 function pnpm(args, cwd) {
-  // Reuse pnpm's JS entry so this also works with pnpm.cmd on Windows.
-  const cli = process.env.npm_execpath
-  return cli && /pnpm/i.test(cli) ? run(process.execPath, [cli, ...args], cwd) : run('pnpm', args, cwd)
+  const invocation = pnpmInvocation()
+  return run(invocation.command, [...invocation.args, ...args], cwd)
 }
 
 async function sha256(file) {
@@ -85,6 +104,21 @@ async function removeBinLinks(directory) {
   }
 }
 
+async function materializeSymlinks(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if (entry.name === '.pnpm' || entry.name === '.bin') continue
+    const file = join(directory, entry.name)
+    if (entry.isSymbolicLink()) {
+      const target = await realpath(file)
+      const targetStat = await stat(target)
+      await rm(file, { recursive: true, force: true })
+      await cp(target, file, { recursive: targetStat.isDirectory(), dereference: true })
+    } else if (entry.isDirectory()) {
+      await materializeSymlinks(file)
+    }
+  }
+}
+
 async function verifyTree(directory) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const file = join(directory, entry.name)
@@ -113,16 +147,36 @@ async function main() {
   for (const file of ['package.json', 'pnpm-lock.yaml', 'packages/electron-shell/package.json', 'packages/cae-mcp-server/package.json', 'packages/cae-ui/package.json']) {
     await copyProjectFile(file)
   }
+  // pnpm resolves optional native packages for the host platform unless the
+  // target architectures are declared in the runtime manifest. The build
+  // runs on macOS as well as Windows, so explicitly retain the Windows x64
+  // variants that the packaged application needs.
+  const runtimeManifestPath = join(runtimeRoot, 'package.json')
+  const runtimeManifest = JSON.parse(await readFile(runtimeManifestPath, 'utf8'))
+  runtimeManifest.pnpm = {
+    ...(runtimeManifest.pnpm ?? {}),
+    supportedArchitectures: {
+      ...(runtimeManifest.pnpm?.supportedArchitectures ?? {}),
+      os: ['win32'],
+      cpu: ['x64'],
+    },
+  }
+  await writeFile(runtimeManifestPath, JSON.stringify(runtimeManifest, null, 2))
   await writeFile(join(runtimeRoot, 'pnpm-workspace.yaml'), [
     'packages:', '  - packages/*',
-    'nodeLinker: hoisted',
-    'supportedArchitectures:', '  os:', '    - win32', '  cpu:', '    - x64', '',
+    '',
   ].join('\n'))
-  await pnpm(['install', '--prod', '--frozen-lockfile', '--ignore-scripts'], runtimeRoot)
+  // nodeLinker is a pnpm config value rather than a workspace manifest key;
+  // pass it explicitly so packages are hoisted into the portable runtime.
+  await pnpm(['install', '--prod', '--frozen-lockfile', '--ignore-scripts', '--config.node-linker=hoisted'], runtimeRoot)
 
   // Workspace links are unnecessary at runtime; imports use the real package paths.
   await rm(join(runtimeRoot, 'node_modules', '@cae'), { recursive: true, force: true })
   await rm(join(runtimeRoot, 'node_modules', '.bin'), { recursive: true, force: true })
+  // pnpm can leave package links even with nodeLinker=hoisted. Copy their
+  // targets before removing .pnpm so the portable Windows archive has no
+  // broken symlinks.
+  await materializeSymlinks(runtimeRoot)
   await rm(join(runtimeRoot, 'node_modules', '.pnpm'), { recursive: true, force: true })
   await rm(join(runtimeRoot, 'node_modules', '.modules.yaml'), { force: true })
   await rm(join(runtimeRoot, 'packages', 'electron-shell'), { recursive: true, force: true })
@@ -208,5 +262,7 @@ async function main() {
     console.log(`Created ${file} (${Math.round((await stat(file)).size / 1024 / 1024)} MiB)`)
   }
 }
+
+module.exports = { isNodeScript, materializeSymlinks, pnpmInvocation }
 
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1 })

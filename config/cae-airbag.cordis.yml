@@ -127,35 +127,29 @@
 
     - id: mcp-hyperworks
       name: '@deepseek-ai/dsh-mcp-client'
-      disabled: !!js "!process.env.HYPERWORKS_HOME"
+      disabled: !!js "process.env.CAE_ENABLE_HYPERWORKS_MCP === '0' || (!process.env.CAE_ENABLE_HYPERWORKS_MCP && !process.env.HYPERWORKS_HOME)"
       config:
         serverName: hyperworks
         transport: stdio
-        command: uv
-        args:
-          - run
-          - --project
-          - !!js process.cwd() + '/packages/hyperworks-mcp'
-          - hyperworks-mcp
+        command: !!js "process.cwd() + '/packages/hyperworks-mcp/.venv/' + (process.platform === 'win32' ? 'Scripts/hyperworks-mcp.exe' : 'bin/hyperworks-mcp')"
         env:
           HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME ?? ''
         failOnStartupError: false
         toolCallTimeoutMs: 3600000
+        reconnect:
+          maxAttempts: 1000
 
     - id: mcp-qilan-solve
       name: '@deepseek-ai/dsh-mcp-client'
-      disabled: !!js "!process.env.CAE_LSDYNA"
+      disabled: !!js "process.env.CAE_ENABLE_QILAN_MCP === '0' || (!process.env.CAE_ENABLE_QILAN_MCP && !process.env.CAE_LSDYNA)"
       config:
         serverName: qilan_solve
         transport: stdio
-        command: uv
-        args:
-          - run
-          - --project
-          - !!js process.cwd() + '/packages/qilan-solve'
-          - qilan-solve-mcp
+        command: !!js "process.cwd() + '/packages/qilan-solve/.venv/' + (process.platform === 'win32' ? 'Scripts/qilan-solve-mcp.exe' : 'bin/qilan-solve-mcp')"
         env:
           LSDYNA_BIN: !!js process.env.CAE_LSDYNA ?? ''
           HYPERWORKS_HOME: !!js process.env.HYPERWORKS_HOME ?? ''
         failOnStartupError: false
         toolCallTimeoutMs: 3600000
+        reconnect:
+          maxAttempts: 1000

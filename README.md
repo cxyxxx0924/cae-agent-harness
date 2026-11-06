@@ -17,7 +17,14 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 | `packages/hyperworks-mcp/` | `hyperworks` | `mcp__hyperworks__*` | HyperMesh/HyperView/HyperStudy 全套自动化（~70 个工具）|
 | `packages/qilan-solve/` | `qilan_solve` | `mcp__qilan_solve__*` | LS-DYNA 气帘求解专用（校验、求解、GIF 渲染）|
 
-两个服务由 dsh 通过 cordis profile 的 `uv run --project` 自动启动，**无需手动安装**，首次启动时 uv 会自动创建虚拟环境并安装依赖。
+桌面应用会在 dsh 启动后异步准备两个服务的虚拟环境；MCP 进程直接运行虚拟环境中已安装的入口程序，因此 Python 和依赖下载、uv 环境锁都不会阻塞聊天界面。环境准备好后，dsh 会自动重连并注册工具。首次准备需要联网，打包版 Windows 默认使用清华 PyPI 镜像；可通过 `UV_INDEX_URL` 或 `CAE_UV_INDEX_URL` 覆盖。
+
+直接运行 dsh（不经过 Electron）时，请先准备依赖：
+
+```bash
+uv sync --project packages/hyperworks-mcp
+uv sync --project packages/qilan-solve
+```
 
 ### 额外环境变量
 
@@ -129,8 +136,9 @@ CAE 界面通过 `config/cae-airbag.cordis.yml` 关闭插件管理、插件创�
 桌面应用优先使用设置窗口中保存的配置。直接运行 dsh 时，它会读取启动环境、项目 `.env` 和用户目录 `.env`，已有环境变量优先；仅在 `.env` 中填写 API Key 不会跳过桌面应用的首次配置窗口。
 macOS 可以先验证界面、设置保存和模型对话；Windows CAE 软件的实际执行及安装包仍需在 Windows 上验证。
 
-如果日志出现 `EADDRINUSE`，说明端口已被其他进程占用，请退出之前启动的 CAE Agent 或 dsh 后重试。
-需要同时运行多个实例时，在启动前设置不同的 `DSH_PORT`（macOS 例如 `DSH_PORT=3081 pnpm dev`）。
+桌面应用只运行一个实例，重复打开会唤起现有窗口。启动时会先显示连接进度，并检查后台端口；端口被其他程序占用时会直接提示。
+如需调整默认的 3080 端口，可在启动前设置 `DSH_PORT`（macOS 例如 `DSH_PORT=3081 pnpm dev`）。
+Windows 启动日志保存在 `%APPDATA%\@cae\electron-shell\logs\startup.log`；文件超过 2 MiB 后轮转为 `startup.log.previous`。日志会记录后台标准输出、错误和退出状态，并遮盖已配置的 API Key、求解服务令牌及启动 URL 的 token。启动失败对话框会显示日志路径和最近的后台输出。
 
 ### 求解器部署方式
 
@@ -204,7 +212,7 @@ pnpm dist:win:installer
 构建环境要求 Node.js >= 24.9.0 和 pnpm 10.x，支持在 macOS 或 Windows 上构建 Windows x64 版本。
 脚本会自动构建项目、按锁文件安装 Windows 后台依赖，并内置 Node.js 24.14.0 和 uv；同时生成两个版本时只准备一次运行环境。
 应用适用于 Windows 10/11 x64，使用时无需安装 Node.js 或 pnpm。
-首次启动填写自己的模型密钥。本机前后处理需安装 HyperWorks 并配置许可证；本地软件求解还需安装 LS-DYNA 并配置许可证，也可连接另行部署的本地或远程求解服务。首次启用 Python 工具需联网下载环境和依赖。
+首次启动填写自己的模型密钥。本机前后处理需安装 HyperWorks 并配置许可证；本地软件求解还需安装 LS-DYNA 并配置许可证，也可连接另行部署的本地或远程求解服务。首次启用 Python 工具需联网下载环境和依赖。桌面应用会先打开聊天界面，再在后台完成下载；下载失败会自动重试，不会阻塞 dsh 启动。
 
 ## 项目结构
 
