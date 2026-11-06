@@ -63,6 +63,8 @@ window.__ModuleLoader__.load({
       const [search, setSearch] = useState('')
       const [onlySelected, setOnlySelected] = useState(false)
       const [checks, setChecks] = useState({})
+      const [customModelId, setCustomModelId] = useState('')
+      const [customContextWindow, setCustomContextWindow] = useState('')
 
       useEffect(() => {
         if (!api) return
@@ -98,7 +100,7 @@ window.__ModuleLoader__.load({
       }
 
       function update(id, value) {
-        setValues(previous => ({ ...previous, [id]: value, models: [], availableModels: [], model: '' }))
+        setValues(previous => ({ ...previous, [id]: value, models: [], availableModels: previous.customModels, model: '' }))
         setChecks({})
         setMessage('接口配置已修改，请重新获取模型列表。')
       }
@@ -119,16 +121,47 @@ window.__ModuleLoader__.load({
       async function discover() {
         setMessage('正在获取模型列表…')
         const discovered = await api.discover(values)
-        const selected = values.models.filter(id => discovered.includes(id))
-        const removed = values.availableModels.filter(id => !discovered.includes(id)).length
+        const availableModels = [...new Set([...discovered.models, ...values.customModels])]
+        const selected = values.models.filter(id => availableModels.includes(id))
+        const removed = values.availableModels.filter(id => !availableModels.includes(id)).length
         setValues(previous => ({
-          ...previous, availableModels: discovered, models: selected,
+          ...previous, availableModels, models: selected,
+          modelContexts: {
+            ...discovered.modelContexts,
+            ...Object.fromEntries(Object.entries(previous.modelContexts).filter(([id]) => previous.customModels.includes(id))),
+          },
           model: selected.includes(previous.model) ? previous.model : selected[0] || '',
         }))
         setChecks({})
         setSearch('')
         setOnlySelected(false)
-        setMessage(`已获取 ${discovered.length} 个模型${removed ? `，已移除 ${removed} 个接口不再提供的模型` : ''}。点击模型标签选择要使用的模型。`)
+        setMessage(`已获取 ${discovered.models.length} 个模型${removed ? `，已移除 ${removed} 个接口不再提供的模型` : ''}。点击模型标签选择要使用的模型。`)
+      }
+
+      function addCustomModel() {
+        const id = customModelId.trim()
+        const contextWindow = Number(customContextWindow)
+        if (!id || /[\s\0]/.test(id)) {
+          setFailed(true)
+          setMessage('模型 ID 不能为空，也不能包含空白字符。')
+          return
+        }
+        if (!Number.isInteger(contextWindow) || contextWindow < 1 || contextWindow > 10000000) {
+          setFailed(true)
+          setMessage('上下文窗口必须是 1 到 10,000,000 之间的整数。')
+          return
+        }
+        const availableModels = values.availableModels.includes(id) ? values.availableModels : [...values.availableModels, id]
+        const models = values.models.includes(id) ? values.models : [...values.models, id]
+        setValues(previous => ({
+          ...previous, availableModels, models, model: previous.model || id,
+          customModels: previous.customModels.includes(id) ? previous.customModels : [...previous.customModels, id],
+          modelContexts: { ...previous.modelContexts, [id]: contextWindow },
+        }))
+        setCustomModelId('')
+        setCustomContextWindow('')
+        setFailed(false)
+        setMessage(`已添加或更新自定义模型 ${id}。`)
       }
 
       async function testSelected() {
@@ -139,6 +172,7 @@ window.__ModuleLoader__.load({
         setValues(previous => ({
           ...previous, models: selected,
           availableModels: previous.availableModels.filter(id => !unavailable.has(id)),
+          customModels: previous.customModels.filter(id => !unavailable.has(id)),
           model: selected.includes(previous.model) ? previous.model : selected[0] || '',
         }))
         setChecks(previous => ({ ...previous, ...Object.fromEntries(results.map(result => [result.id, result])) }))
@@ -148,6 +182,9 @@ window.__ModuleLoader__.load({
       }
 
       const visible = values?.availableModels.filter(id => (!onlySelected || values.models.includes(id)) && id.toLowerCase().includes(search.toLowerCase())) || []
+      const contextLabel = id => values.modelContexts[id]
+        ? `上下文 ${new Intl.NumberFormat('zh-CN').format(values.modelContexts[id])}`
+        : '上下文未知，运行时默认 65,536'
       return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-models-title' },
         element('h2', { id: 'cae-models-title' }, '模型'),
         element('p', { className: 'cae-settings-intro' }, '获取当前接口的模型列表，点击标签选择要使用的模型，再选择默认模型。保存后可在对话中切换。'),
@@ -181,10 +218,29 @@ window.__ModuleLoader__.load({
                   element('div', { className: 'cae-model-list', role: 'group', 'aria-labelledby': 'cae-model-list-title' },
                     ...visible.map(id => element('button', {
                       key: id, type: 'button', className: 'cae-model-chip', 'aria-pressed': values.models.includes(id),
-                      title: checks[id]?.message || id,
+                      title: `${id}；${contextLabel(id)}${checks[id] ? `；${checks[id].message}` : ''}`,
                       onClick: () => select(values.models.includes(id) ? values.models.filter(model => model !== id) : [...values.models, id]),
-                    }, values.models.includes(id) ? '✓ ' : '+ ', id, checks[id] && element('small', null, checks[id].status === 'available' ? '可用' : '待确认'))),
+                    }, values.models.includes(id) ? '✓ ' : '+ ', id,
+                    element('small', null, contextLabel(id)),
+                    checks[id] && element('small', null, checks[id].status === 'available' ? '可用' : '待确认'))),
                     !visible.length && element('p', { className: 'cae-model-empty' }, values.availableModels.length ? '没有符合条件的模型。' : '填写接口地址和 API Key 后，点击“获取模型列表”。'),
+                  ),
+                  element('div', { className: 'cae-custom-model' },
+                    element('strong', null, '添加或覆盖自定义模型'),
+                    element('div', { className: 'cae-custom-model-fields' },
+                      element('input', {
+                        type: 'text', value: customModelId, placeholder: '模型 ID', 'aria-label': '自定义模型 ID',
+                        autoComplete: 'off', spellCheck: false,
+                        onChange: event => setCustomModelId(event.target.value),
+                      }),
+                      element('input', {
+                        type: 'number', min: 1, max: 10000000, step: 1, value: customContextWindow,
+                        placeholder: '上下文窗口大小', 'aria-label': '自定义模型上下文窗口大小',
+                        onChange: event => setCustomContextWindow(event.target.value),
+                      }),
+                      element('button', { type: 'button', onClick: addCustomModel }, '添加'),
+                    ),
+                    element('p', { className: 'cae-settings-hint' }, '上下文窗口以 token 数填写；模型 ID 已存在时会覆盖它的上下文设置。'),
                   ),
                   element('div', { className: 'cae-model-test-row' },
                     element('button', { type: 'button', disabled: !values.models.length || values.models.length > 50, onClick: () => void run(testSelected) }, '测试已选'),
@@ -423,6 +479,11 @@ window.__ModuleLoader__.load({
       .cae-simulation-settings .cae-model-chip { border-style: dashed; border-radius: 18px; padding: 6px 12px; white-space: normal; overflow-wrap: anywhere; text-align: left; font: 12px/1.6 monospace; }
       .cae-simulation-settings .cae-model-chip[aria-pressed=true] { border-style: solid; border-color: #2563eb; background: #2563eb12; color: #2563eb; }
       .cae-model-chip small { margin-left: 8px; font: 11px/1.4 sans-serif; color: var(--dsw-alias-label-tertiary); }
+      .cae-custom-model { border-top: 1px solid var(--dsw-alias-border-l2); padding-top: 12px; margin-top: 4px; }
+      .cae-custom-model > strong { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
+      .cae-custom-model-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(150px, 0.7fr) auto; gap: 8px; }
+      .cae-custom-model-fields input { min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; padding: 9px 10px; font: 12px/1.5 monospace; }
+      @media (max-width: 520px) { .cae-custom-model-fields { grid-template-columns: 1fr; } }
       .cae-model-empty { border: 1px dashed var(--dsw-alias-border-l2); border-radius: 8px; width: 100%; margin: 0; padding: 20px 12px; text-align: center; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
       .cae-model-test-row { margin-bottom: 8px; }
       .cae-simulation-settings button { border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 8px 14px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }

@@ -1,4 +1,11 @@
 export const DEFAULT_MODEL = 'deepseek-flash'
+export const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536
+export const MAX_MODEL_CONTEXT_WINDOW = 10_000_000
+
+const KNOWN_CONTEXT_WINDOWS: Record<string, number> = {
+  'deepseek-flash': 1_000_000,
+  'deepseek-v4-pro': 1_000_000,
+}
 
 export interface ModelSettings {
   apiKey: string
@@ -9,6 +16,8 @@ export interface ModelSettings {
 export interface ModelConfiguration extends ModelSettings {
   models: string[]
   availableModels: string[]
+  customModels: string[]
+  modelContexts: Record<string, number>
 }
 
 export function parseModelSettings(raw: unknown): ModelSettings {
@@ -55,11 +64,17 @@ export function parseModelConfiguration(raw: unknown): ModelConfiguration {
   const values = raw as Record<string, unknown>
   const models = parseModelList(values.models === undefined ? [settings.model] : values.models)
   const availableModels = parseModelList(values.availableModels === undefined ? models : values.availableModels)
+  const customModels = parseModelList(values.customModels === undefined ? [] : values.customModels)
+  const modelContexts = parseModelContexts(values.modelContexts)
   if (!models.length) throw new Error('请至少选择一个模型。')
   if (!models.includes(settings.model)) throw new Error('请从已选模型中选择默认模型。')
   const available = new Set(availableModels)
   if (models.some(id => !available.has(id))) throw new Error('所选模型已不在当前接口的列表中，请重新获取并选择。')
-  return { ...settings, models, availableModels }
+  if (customModels.some(id => !available.has(id))) throw new Error('自定义模型必须保留在模型列表中。')
+  for (const [id, contextWindow] of Object.entries(KNOWN_CONTEXT_WINDOWS)) {
+    if (available.has(id) && modelContexts[id] === undefined) modelContexts[id] = contextWindow
+  }
+  return { ...settings, models, availableModels, customModels, modelContexts }
 }
 
 export function modelEnvironment(raw: unknown): Record<string, string> {
@@ -71,6 +86,7 @@ export function modelEnvironment(raw: unknown): Record<string, string> {
       LLM_BASE_URL: settings.llmBaseUrl || 'https://api.deepseek.com/v1',
       LLM_MODEL: settings.model,
       CAE_MODELS: JSON.stringify(settings.models),
+      CAE_MODEL_CONTEXT_WINDOWS: JSON.stringify(settings.modelContexts),
     }
   } catch {
     return {
@@ -79,6 +95,7 @@ export function modelEnvironment(raw: unknown): Record<string, string> {
       LLM_BASE_URL: '',
       LLM_MODEL: '',
       CAE_MODELS: '[]',
+      CAE_MODEL_CONTEXT_WINDOWS: '{}',
     }
   }
 }
@@ -92,7 +109,40 @@ function parseModelList(raw: unknown): string[] {
   return [...new Set(raw.map(id => id.trim()))]
 }
 
-export async function discoverModels(raw: unknown): Promise<string[]> {
+function parseModelContexts(raw: unknown): Record<string, number> {
+  if (raw === undefined) return {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('模型上下文配置格式无效，请重新填写。')
+  }
+  const entries = Object.entries(raw)
+  if (entries.length > 1000) throw new Error('模型上下文配置格式无效，请重新获取模型列表。')
+  const contexts: Record<string, number> = {}
+  for (const [id, contextWindow] of entries) {
+    if (!id.trim() || /[\s\0]/.test(id) || !Number.isInteger(contextWindow) ||
+      (contextWindow as number) < 1 || (contextWindow as number) > MAX_MODEL_CONTEXT_WINDOW) {
+      throw new Error('上下文窗口必须是 1 到 10,000,000 之间的整数。')
+    }
+    contexts[id] = contextWindow as number
+  }
+  return contexts
+}
+
+function contextWindowFromEntry(entry: Record<string, unknown>): number | undefined {
+  const fields = ['context_length', 'context_window', 'contextWindow', 'max_context_length', 'max_input_tokens']
+  for (const field of fields) {
+    const value = entry[field]
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN
+    if (Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_MODEL_CONTEXT_WINDOW) return parsed
+  }
+  return undefined
+}
+
+export interface DiscoveredModels {
+  models: string[]
+  modelContexts: Record<string, number>
+}
+
+export async function discoverModels(raw: unknown): Promise<DiscoveredModels> {
   const { apiKey, llmBaseUrl } = parseModelSettings({ ...(raw as object), model: DEFAULT_MODEL })
   const url = `${(llmBaseUrl || 'https://api.deepseek.com/v1').replace(/\/+$/, '')}/models`
   let response: Response
@@ -114,9 +164,27 @@ export async function discoverModels(raw: unknown): Promise<string[]> {
   }
   const entries = (body as { data?: unknown } | null)?.data
   if (!Array.isArray(entries)) throw new Error('接口未返回有效的模型列表，请检查接口地址后重试。')
-  return [...new Set(entries.flatMap(entry =>
-    entry && typeof entry.id === 'string' && entry.id && !/[\s\0]/.test(entry.id) ? [entry.id] : [],
-  ))].slice(0, 1000)
+  const models: string[] = []
+  const modelContexts: Record<string, number> = {}
+  for (const entry of entries) {
+    if (!entry || typeof entry !== 'object') continue
+    const value = entry as Record<string, unknown>
+    const id = value.id
+    if (typeof id !== 'string' || !id || /[\s\0]/.test(id) || models.includes(id)) continue
+    models.push(id)
+    const contextWindow = contextWindowFromEntry(value)
+    if (contextWindow) modelContexts[id] = contextWindow
+  }
+  const limitedModels = models.slice(0, 1000)
+  for (const id of limitedModels) {
+    if (modelContexts[id] === undefined && KNOWN_CONTEXT_WINDOWS[id] !== undefined) {
+      modelContexts[id] = KNOWN_CONTEXT_WINDOWS[id]
+    }
+  }
+  return {
+    models: limitedModels,
+    modelContexts: Object.fromEntries(Object.entries(modelContexts).filter(([id]) => limitedModels.includes(id))),
+  }
 }
 
 export interface ModelCheck {

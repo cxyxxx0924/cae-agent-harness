@@ -245,7 +245,12 @@ function registerIpc(): void {
   ipcMain.handle('models:load', event => {
     requireMainWindow(event)
     const settings = loadSettings()
-    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, availableModels: settings.availableModels, apiKey: '', hasApiKey: Boolean(settings.apiKey), configured: modelEnvironment(settings).CAE_MODELS_CONFIGURED === '1' }
+    return {
+      llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models,
+      availableModels: settings.availableModels, customModels: settings.customModels,
+      modelContexts: settings.modelContexts, apiKey: '', hasApiKey: Boolean(settings.apiKey),
+      configured: modelEnvironment(settings).CAE_MODELS_CONFIGURED === '1',
+    }
   })
 
   ipcMain.handle('models:save', async (event, raw: unknown) => {

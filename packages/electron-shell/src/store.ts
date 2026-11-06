@@ -18,6 +18,8 @@ const DEFAULTS: CaeSettings = {
   model: DEFAULT_MODEL,
   models: [],
   availableModels: [],
+  customModels: [],
+  modelContexts: {},
 }
 
 function storePath(): string {
@@ -30,7 +32,10 @@ export function loadSettings(): CaeSettings {
     if (existsSync(p)) {
       const saved = JSON.parse(readFileSync(p, 'utf8'))
       const models = saved.models ?? [saved.model || DEFAULT_MODEL]
-      return { ...DEFAULTS, ...saved, models, availableModels: saved.availableModels ?? models } as CaeSettings
+      return {
+        ...DEFAULTS, ...saved, models, availableModels: saved.availableModels ?? models,
+        customModels: saved.customModels ?? [], modelContexts: saved.modelContexts ?? {},
+      } as CaeSettings
     }
   } catch {
     // ignore corrupt file — fall through to defaults

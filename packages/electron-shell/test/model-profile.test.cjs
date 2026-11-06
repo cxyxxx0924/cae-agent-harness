@@ -9,7 +9,7 @@ const { join, resolve } = require('node:path')
 const { test } = require('node:test')
 const { pathToFileURL } = require('node:url')
 
-async function startModelRuntime(t, model, models = [], configured = true) {
+async function startModelRuntime(t, model, models = [], configured = true, modelContexts = {}) {
   const temporaryHome = await mkdtemp(join(tmpdir(), 'cae-model-test-'))
   const previous = {}
   let ctx
@@ -72,6 +72,7 @@ async function startModelRuntime(t, model, models = [], configured = true) {
     LLM_BASE_URL: `http://127.0.0.1:${endpoint.address().port}/v1`,
     LLM_MODEL: model,
     CAE_MODELS: JSON.stringify(models),
+    CAE_MODEL_CONTEXT_WINDOWS: JSON.stringify(modelContexts),
     CAE_DESKTOP: '1',
     CAE_MODELS_CONFIGURED: configured ? '1' : '0',
     CAE_WORKFLOW_DIR: join(temporaryHome, 'workflows'),
@@ -180,6 +181,12 @@ test('an unconfigured desktop runtime starts with an empty catalog and can brows
   const { sessionId } = await ctx.sessionController.create({})
   assert.ok(sessionId)
   assert.equal(received.length, 0)
+})
+
+test('a custom configured model uses its declared context window', { timeout: 30000 }, async t => {
+  const { ctx } = await startModelRuntime(t, 'custom-model', ['custom-model'], true, { 'custom-model': 262144 })
+  await ctx.sessionController.create({})
+  assert.equal((await ctx.llm.resolveModelInfo('cae', 'custom-model')).context.contextWindow, 262144)
 })
 
 async function complete(ctx, selection, prepare = false) {

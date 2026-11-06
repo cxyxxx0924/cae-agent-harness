@@ -90,7 +90,12 @@ test('saving model or simulation settings preserves both connections and migrate
   assert.equal(store.loadSettings().solverLocation, 'local')
   assert.deepEqual(store.loadSettings().models, ['deepseek-flash'])
 
-  store.saveSettings({ ...store.loadSettings(), model: 'working-model', models: ['working-model', 'other-model'], availableModels: ['working-model', 'other-model', 'unselected-model'], solverLocation: 'server', solverServerUrl: 'https://solver.example', solverServerToken: 'remote-token' })
+  store.saveSettings({
+    ...store.loadSettings(), model: 'working-model', models: ['working-model', 'other-model'],
+    availableModels: ['working-model', 'other-model', 'unselected-model', 'custom-model'],
+    customModels: ['custom-model'], modelContexts: { 'custom-model': 262144 },
+    solverLocation: 'server', solverServerUrl: 'https://solver.example', solverServerToken: 'remote-token',
+  })
   store.saveSettings({ ...store.loadSettings(), model: 'other-model' })
   assert.equal(store.loadSettings().solverServerToken, 'remote-token')
   store.saveSimulationSettings({ ...store.loadSettings(), apiKey: 'ignored', solverLocation: 'local', localSolverType: 'service', solverLocalServiceToken: 'local-token' })
@@ -98,7 +103,9 @@ test('saving model or simulation settings preserves both connections and migrate
   assert.equal(saved.apiKey, model.apiKey)
   assert.equal(saved.model, 'other-model')
   assert.deepEqual(saved.models, ['working-model', 'other-model'])
-  assert.deepEqual(saved.availableModels, ['working-model', 'other-model', 'unselected-model'])
+  assert.deepEqual(saved.availableModels, ['working-model', 'other-model', 'unselected-model', 'custom-model'])
+  assert.deepEqual(saved.customModels, ['custom-model'])
+  assert.deepEqual(saved.modelContexts, { 'custom-model': 262144 })
   assert.equal(saved.lsdyna, legacy.lsdyna)
   assert.equal(saved.solverServerToken, 'remote-token')
   assert.equal(saved.solverLocalServiceToken, 'local-token')

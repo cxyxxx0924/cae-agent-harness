@@ -29,6 +29,12 @@ test('unconfigured and invalid desktop models start with no inherited credential
   assert.equal(env.DEEPSEEK_API_KEY, validSettings.apiKey)
   assert.equal(env.LLM_MODEL, validSettings.model)
   assert.deepEqual(JSON.parse(env.CAE_MODELS), [validSettings.model])
+  assert.equal(JSON.parse(env.CAE_MODEL_CONTEXT_WINDOWS)['deepseek-flash'], 1000000)
+  const customEnv = modelEnvironment({
+    ...validSettings, model: 'local-model', models: ['local-model'], availableModels: ['local-model'],
+    customModels: ['local-model'], modelContexts: { 'local-model': 131072 },
+  })
+  assert.equal(JSON.parse(customEnv.CAE_MODEL_CONTEXT_WINDOWS)['local-model'], 131072)
 })
 
 test('accepts saved model settings and trims pasted whitespace', () => {
@@ -112,6 +118,18 @@ test('migrates a single saved model and validates selected models against the av
   const selected = parseModelConfiguration({ ...validSettings, models: [validSettings.model], availableModels: [validSettings.model, 'unselected-model'] })
   assert.deepEqual(selected.models, [validSettings.model])
   assert.deepEqual(selected.availableModels, [validSettings.model, 'unselected-model'])
+  assert.deepEqual(selected.modelContexts, { 'deepseek-flash': 1000000 })
+  const custom = parseModelConfiguration({
+    ...validSettings, model: 'local-model', models: ['local-model'], availableModels: ['local-model'],
+    customModels: ['local-model'], modelContexts: { 'local-model': 131072 },
+  })
+  assert.equal(custom.modelContexts['local-model'], 131072)
+  assert.deepEqual(custom.customModels, ['local-model'])
+  for (const modelContexts of [{ 'local-model': 0 }, { 'local-model': 1.5 }, { 'local-model': 10000001 }, []]) {
+    assert.throws(() => parseModelConfiguration({
+      ...validSettings, models: [validSettings.model], availableModels: [validSettings.model], modelContexts,
+    }), /上下文/)
+  }
 })
 
 test('discovers alternatives without requesting the unavailable default model', async t => {
@@ -119,14 +137,23 @@ test('discovers alternatives without requesting the unavailable default model', 
   const endpoint = createServer((request, response) => {
     requests.push({ method: request.method, path: request.url, authorization: request.headers.authorization })
     response.writeHead(200, { 'Content-Type': 'application/json' })
-    response.end(JSON.stringify({ data: [{ id: 'working-model' }, { id: 'other-model' }, { id: 'working-model' }, { id: 'invalid model' }] }))
+    response.end(JSON.stringify({ data: [
+      { id: 'working-model', context_length: 131072 },
+      { id: 'other-model', context_window: '262144' },
+      { id: 'deepseek-flash' },
+      { id: 'working-model', context_length: 65536 },
+      { id: 'invalid model', context_length: 4096 },
+    ] }))
   })
   endpoint.listen(0, '127.0.0.1')
   await once(endpoint, 'listening')
   t.after(() => new Promise(resolve => endpoint.close(resolve)))
   assert.deepEqual(await discoverModels({
     ...validSettings, model: 'invalid model', llmBaseUrl: `http://127.0.0.1:${endpoint.address().port}/gateway/v1/`,
-  }), ['working-model', 'other-model'])
+  }), {
+    models: ['working-model', 'other-model', 'deepseek-flash'],
+    modelContexts: { 'working-model': 131072, 'other-model': 262144, 'deepseek-flash': 1000000 },
+  })
   assert.deepEqual(requests, [{ method: 'GET', path: '/gateway/v1/models', authorization: 'Bearer sk-test-only' }])
 })
 
@@ -151,7 +178,7 @@ test('discovery failures preserve saved models and do not expose response secret
     await assert.rejects(discoverModels(settings), /有效的模型列表/)
   }
   body = '{"data":[]}'
-  assert.deepEqual(await discoverModels(settings), [])
+  assert.deepEqual(await discoverModels(settings), { models: [], modelContexts: {} })
 })
 
 test('tests selected models and only removes definitive model failures, retaining transient errors', async t => {
