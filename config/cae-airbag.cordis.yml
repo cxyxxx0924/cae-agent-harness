@@ -7,7 +7,7 @@
 - id: agent-default-model
   config:
     provider: cae
-    model: !!js process.env.LLM_MODEL || 'deepseek-flash'
+    model: !!js "process.env.CAE_MODELS_CONFIGURED === '0' ? 'unconfigured' : process.env.LLM_MODEL || 'deepseek-flash'"
 
 - id: ui-plugin-manager
   disabled: true
@@ -94,7 +94,7 @@
             baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1'
             apiKeyEnv: DEEPSEEK_API_KEY
             models: !!js >-
-              [...new Set([process.env.LLM_MODEL || 'deepseek-flash', ...JSON.parse(process.env.CAE_MODELS || '[]')])].map(id => ({
+              (process.env.CAE_MODELS_CONFIGURED === '0' ? [] : [...new Set([process.env.LLM_MODEL || 'deepseek-flash', ...JSON.parse(process.env.CAE_MODELS || '[]')])]).map(id => ({
                 id, name: id, contextWindow: 65536, maxTokens: 8192,
                 reasoningEfforts: ['deepseek-flash', 'deepseek-v4-pro'].includes(id)
                   ? { off: null, low: 'low', high: 'high', max: 'max' } : undefined,

@@ -7,7 +7,7 @@ const { tmpdir } = require('node:os')
 const { join, resolve } = require('node:path')
 const { test } = require('node:test')
 
-async function startModelRuntime(t, model, models = []) {
+async function startModelRuntime(t, model, models = [], configured = true) {
   const temporaryHome = await mkdtemp(join(tmpdir(), 'cae-model-test-'))
   const previous = {}
   let ctx
@@ -69,6 +69,7 @@ async function startModelRuntime(t, model, models = []) {
     LLM_MODEL: model,
     CAE_MODELS: JSON.stringify(models),
     CAE_DESKTOP: '1',
+    CAE_MODELS_CONFIGURED: configured ? '1' : '0',
     HYPERWORKS_HOME: '',
     CAE_LSDYNA: '',
   }
@@ -89,6 +90,16 @@ async function startModelRuntime(t, model, models = []) {
   ctx = runtime.ctx
   return { ctx, received }
 }
+
+test('an unconfigured desktop runtime starts with an empty catalog and can browse a blank session', { timeout: 30000 }, async t => {
+  const { ctx, received } = await startModelRuntime(t, 'inherited-model', ['inherited-model'], false)
+  const catalog = await ctx.sessionController.modelCatalog()
+  assert.deepEqual(catalog.groups, [])
+  assert.deepEqual(catalog.failures, [])
+  const { sessionId } = await ctx.sessionController.create({})
+  assert.ok(sessionId)
+  assert.equal(received.length, 0)
+})
 
 async function complete(ctx, selection, prepare = false) {
   let text = ''

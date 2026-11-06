@@ -2,13 +2,34 @@ const assert = require('node:assert/strict')
 const { test } = require('node:test')
 const { once } = require('node:events')
 const { createServer } = require('node:http')
-const { DEFAULT_MODEL, parseModelSettings, parseModelConfiguration, discoverModels, testModels } = require('../dist/model-settings.js')
+const { DEFAULT_MODEL, parseModelSettings, parseModelConfiguration, modelEnvironment, discoverModels, testModels } = require('../dist/model-settings.js')
 
 const validSettings = {
   apiKey: 'sk-test-only',
   llmBaseUrl: 'https://api.deepseek.com/v1',
   model: 'deepseek-flash',
 }
+
+test('unconfigured and invalid desktop models start with no inherited credentials or advertised models', () => {
+  for (const settings of [
+    { ...validSettings, apiKey: '', models: [], availableModels: [] },
+    { ...validSettings, models: ['other-model'] },
+    { ...validSettings, llmBaseUrl: 'unfinished' },
+    null,
+  ]) {
+    const env = { DEEPSEEK_API_KEY: 'inherited-key', LLM_MODEL: 'inherited-model', ...modelEnvironment(settings) }
+    assert.equal(env.CAE_MODELS_CONFIGURED, '0')
+    assert.equal(env.DEEPSEEK_API_KEY, '')
+    assert.equal(env.LLM_MODEL, '')
+    assert.equal(env.LLM_BASE_URL, '')
+    assert.equal(env.CAE_MODELS, '[]')
+  }
+  const env = modelEnvironment(validSettings)
+  assert.equal(env.CAE_MODELS_CONFIGURED, '1')
+  assert.equal(env.DEEPSEEK_API_KEY, validSettings.apiKey)
+  assert.equal(env.LLM_MODEL, validSettings.model)
+  assert.deepEqual(JSON.parse(env.CAE_MODELS), [validSettings.model])
+})
 
 test('accepts saved model settings and trims pasted whitespace', () => {
   assert.deepEqual(parseModelSettings({

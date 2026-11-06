@@ -25,6 +25,7 @@ function withHighDefaults(adapter) {
 }
 
 export function apply(ctx, config) {
+  if (process.env.CAE_MODELS_CONFIGURED === '0') return
   const llm = ctx.llm
   const scoped = ctx.extend({
     llm: new Proxy(llm, {

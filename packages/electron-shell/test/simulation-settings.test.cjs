@@ -77,6 +77,13 @@ test('saving model or simulation settings preserves both connections and migrate
   const loadModule = new Script(`(function(require, module, exports) { ${await readFile(filename, 'utf8')}\n})`, { filename }).runInThisContext()
   loadModule(name => name === 'electron' ? { app: { getPath: () => directory } } : requireFromStore(name), module, module.exports)
   const store = module.exports
+  store.saveSimulationSettings({ ...store.loadSettings(), workdir: directory })
+  assert.equal(store.loadSettings().apiKey, '')
+  assert.deepEqual(store.loadSettings().models, [])
+  assert.equal(store.loadSettings().workdir, directory)
+  store.saveSimulationSettings({ ...store.loadSettings(), apiKey: 'ignored', models: ['ignored'], model: 'ignored' })
+  assert.equal(store.loadSettings().apiKey, '')
+  assert.deepEqual(store.loadSettings().models, [])
   const model = { apiKey: 'model-key-test', llmBaseUrl: '', model: 'deepseek-flash' }
   const file = join(directory, 'cae-settings.json')
   await writeFile(file, JSON.stringify({ ...legacy, ...model }))
@@ -86,7 +93,7 @@ test('saving model or simulation settings preserves both connections and migrate
   store.saveSettings({ ...store.loadSettings(), model: 'working-model', models: ['working-model', 'other-model'], availableModels: ['working-model', 'other-model', 'unselected-model'], solverLocation: 'server', solverServerUrl: 'https://solver.example', solverServerToken: 'remote-token' })
   store.saveSettings({ ...store.loadSettings(), model: 'other-model' })
   assert.equal(store.loadSettings().solverServerToken, 'remote-token')
-  store.saveSettings({ ...store.loadSettings(), solverLocation: 'local', localSolverType: 'service', solverLocalServiceToken: 'local-token' })
+  store.saveSimulationSettings({ ...store.loadSettings(), apiKey: 'ignored', solverLocation: 'local', localSolverType: 'service', solverLocalServiceToken: 'local-token' })
   const saved = JSON.parse(await readFile(file, 'utf8'))
   assert.equal(saved.apiKey, model.apiKey)
   assert.equal(saved.model, 'other-model')

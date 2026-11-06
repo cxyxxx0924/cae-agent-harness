@@ -62,6 +62,27 @@ export function parseModelConfiguration(raw: unknown): ModelConfiguration {
   return { ...settings, models, availableModels }
 }
 
+export function modelEnvironment(raw: unknown): Record<string, string> {
+  try {
+    const settings = parseModelConfiguration(raw)
+    return {
+      CAE_MODELS_CONFIGURED: '1',
+      DEEPSEEK_API_KEY: settings.apiKey,
+      LLM_BASE_URL: settings.llmBaseUrl || 'https://api.deepseek.com/v1',
+      LLM_MODEL: settings.model,
+      CAE_MODELS: JSON.stringify(settings.models),
+    }
+  } catch {
+    return {
+      CAE_MODELS_CONFIGURED: '0',
+      DEEPSEEK_API_KEY: '',
+      LLM_BASE_URL: '',
+      LLM_MODEL: '',
+      CAE_MODELS: '[]',
+    }
+  }
+}
+
 function parseModelList(raw: unknown): string[] {
   if (!Array.isArray(raw) || raw.length > 1000 || raw.some(id =>
     typeof id !== 'string' || !id.trim() || /[\s\0]/.test(id.trim()),

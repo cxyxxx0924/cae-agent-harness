@@ -5,8 +5,8 @@ import { resolve, join, delimiter } from 'node:path'
 import { existsSync, statSync } from 'node:fs'
 import { checkDshPort, waitForDsh } from './dsh-startup'
 import { RuntimeLog } from './runtime-log'
-import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
-import { discoverModels, parseModelConfiguration, testModels } from './model-settings'
+import { loadSettings, saveSettings, saveSimulationSettings, type CaeSettings } from './store'
+import { discoverModels, modelEnvironment, parseModelConfiguration, testModels } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
 import {
   preparePythonMcpEnvironments,
@@ -49,30 +49,25 @@ function profilePath(): string {
   return resourcePath('config', 'cae-airbag.cordis.yml')
 }
 
-function preloadPath(): string {
-  return join(__dirname, 'preload.js')
-}
-
 // ── State ──────────────────────────────────────────────────────────────────
 let dshProcess:    ChildProcess | null  = null
 let dshUrl: string | null = null
 let startupComplete = false
 let dshRestart: Promise<void> | null = null
 let mainWindow:    BrowserWindow | null = null
-let settingsWindow: BrowserWindow | null = null
 let launchingDsh = false
 let quitting = false
 let runtimeLog: RuntimeLog
 
 // ── dsh lifecycle ─────────────────────────────────────────────────────────
 function spawnDsh(settings: CaeSettings): ChildProcess {
-  const modelSettings = parseModelConfiguration(settings)
+  const modelEnv = modelEnvironment(settings)
   const simulationSettings = parseSimulationSettings(settings)
   const simulationEnv = simulationEnvironment(simulationSettings)
   const pythonMcpEnv = pythonMcpFeatureEnvironment(simulationSettings)
   const bin     = dshBin()
   const profile = profilePath()
-  runtimeLog.setSecrets([modelSettings.apiKey, simulationSettings.solverServerToken, simulationSettings.solverLocalServiceToken])
+  runtimeLog.setSecrets([settings.apiKey, simulationSettings.solverServerToken, simulationSettings.solverLocalServiceToken])
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: '1',
@@ -80,10 +75,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     DSH_NO_OPEN_BROWSER: '1',
     CAE_DESKTOP:        '1',
     // Saved desktop settings take precedence over the launch environment.
-    DEEPSEEK_API_KEY:   modelSettings.apiKey,
-    LLM_BASE_URL:       modelSettings.llmBaseUrl || 'https://api.deepseek.com/v1',
-    LLM_MODEL:          modelSettings.model,
-    CAE_MODELS:         JSON.stringify(modelSettings.models),
+    ...modelEnv,
     ...simulationEnv,
     ...pythonMcpEnv,
   }
@@ -100,7 +92,7 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
   }
   // Remove empty-string entries to avoid overriding child-process defaults
   for (const key of Object.keys(env)) {
-    if (env[key] === '' && !(key in simulationEnv)) delete env[key]
+    if (env[key] === '' && !(key in simulationEnv) && !(key in modelEnv)) delete env[key]
   }
   const uvEnv = uvEnvironment(env, IS_PACKAGED && process.platform === 'win32')
   runtimeLog.write('main', `Starting dsh: node=${nodeExecutable}; cwd=${projectRoot()}; profile=${profile}; port=${DSH_PORT}`)
@@ -192,38 +184,6 @@ async function restartDsh(): Promise<void> {
   }
 }
 
-// ── Settings window ────────────────────────────────────────────────────────
-function openSettingsWindow(): BrowserWindow {
-  if (settingsWindow && !settingsWindow.isDestroyed()) {
-    settingsWindow.focus()
-    return settingsWindow
-  }
-  settingsWindow = new BrowserWindow({
-    width: 700,
-    height: 620,
-    minWidth: 580,
-    minHeight: 500,
-    title: 'CAE Agent — 设置',
-    resizable: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: false,           // sandbox: false required for preload fs access
-      preload: preloadPath(),
-    },
-    backgroundColor: '#0f172a',
-    show: false,
-    parent: mainWindow ?? undefined,
-    modal: false,
-  })
-  settingsWindow.loadFile(
-    join(__dirname, '..', 'resources', 'settings.html')
-  )
-  settingsWindow.once('ready-to-show', () => { settingsWindow?.show() })
-  settingsWindow.on('closed', () => { settingsWindow = null })
-  return settingsWindow
-}
-
 // ── IPC handlers ───────────────────────────────────────────────────────────
 function registerIpc(): void {
   function requireMainWindow(event: Electron.IpcMainInvokeEvent): void {
@@ -242,7 +202,7 @@ function registerIpc(): void {
   ipcMain.handle('models:load', event => {
     requireMainWindow(event)
     const settings = loadSettings()
-    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, availableModels: settings.availableModels, apiKey: '', hasApiKey: Boolean(settings.apiKey) }
+    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, availableModels: settings.availableModels, apiKey: '', hasApiKey: Boolean(settings.apiKey), configured: modelEnvironment(settings).CAE_MODELS_CONFIGURED === '1' }
   })
 
   ipcMain.handle('models:save', async (event, raw: unknown) => {
@@ -272,8 +232,7 @@ function registerIpc(): void {
   ipcMain.handle('simulation:save', async (event, raw: unknown) => {
     requireMainWindow(event)
     if (dshRestart) throw new Error('后台服务正在重启，请稍后重试。')
-    const settings = parseSimulationSettings(raw)
-    saveSettings({ ...loadSettings(), ...settings })
+    saveSimulationSettings(raw)
     await restartDsh()
   })
 
@@ -309,57 +268,6 @@ function registerIpc(): void {
     requireMainWindow(event)
     return checkSolverService(raw)
   })
-
-  ipcMain.handle('settings:load', () => loadSettings())
-  ipcMain.handle('settings:discover-models', (_event, raw: unknown) => discoverModels(raw))
-  ipcMain.handle('settings:test-models', (_event, raw: unknown) => testModels(raw))
-  ipcMain.handle('settings:check-service', (_event, raw: unknown) => checkSolverService(raw))
-
-  ipcMain.handle('settings:save', async (_evt, raw: unknown) => {
-    if (launchingDsh && !startupComplete) throw new Error('后台服务正在启动，请稍后保存设置。')
-    saveSettings(raw)
-    // Close settings window, then restart dsh + reload main window
-    settingsWindow?.webContents.send('settings:saved')
-    settingsWindow?.close()
-    if (!startupComplete) return
-    try {
-      await restartDsh()
-    } catch (err) {
-      dialog.showErrorBox('CAE Agent — 重启失败', runtimeLog.failure(err))
-    }
-  })
-
-  ipcMain.handle('settings:browse-exe', async (_evt, title: string) => {
-    const win = settingsWindow ?? mainWindow
-    const result = await dialog.showOpenDialog(win!, {
-      title: `选择可执行文件 — ${title}`,
-      properties: ['openFile'],
-      filters: [
-        { name: '可执行文件', extensions: ['exe'] },
-        { name: '所有文件',   extensions: ['*']   },
-      ],
-    })
-    return result.canceled ? null : result.filePaths[0]
-  })
-
-  ipcMain.handle('settings:browse-dir', async (_evt, title: string) => {
-    const win = settingsWindow ?? mainWindow
-    const result = await dialog.showOpenDialog(win!, {
-      title: `选择目录 — ${title}`,
-      properties: ['openDirectory', 'createDirectory'],
-    })
-    return result.canceled ? null : result.filePaths[0]
-  })
-
-  ipcMain.handle('settings:check-paths',
-    async (_evt, paths: Record<string, string>) => {
-      const result: Record<string, boolean> = {}
-      for (const [key, p] of Object.entries(paths)) {
-        result[key] = Boolean(p) && existsSync(p)
-      }
-      return result
-    }
-  )
 }
 
 // ── Main window ────────────────────────────────────────────────────────────
@@ -400,7 +308,7 @@ function createMainWindow(): BrowserWindow {
         {
           label: '设置...',
           accelerator: 'CmdOrCtrl+,',
-          click: () => openSettingsWindow(),
+          click: () => mainWindow?.webContents.send('models:open-settings'),
         },
         { type: 'separator' },
         { role: 'quit', label: '退出' },
@@ -431,7 +339,7 @@ const ownsInstance = app.requestSingleInstanceLock()
 if (!ownsInstance) app.quit()
 
 app.on('second-instance', () => {
-  const win = settingsWindow ?? mainWindow
+  const win = mainWindow
   if (!win || win.isDestroyed()) return
   if (win.isMinimized()) win.restore()
   win.show()
@@ -443,37 +351,6 @@ app.whenReady().then(async () => {
   runtimeLog = new RuntimeLog(join(app.getPath('userData'), 'logs', 'startup.log'))
   runtimeLog.write('main', `CAE Agent ${app.getVersion()}; platform=${process.platform}; packaged=${IS_PACKAGED}`)
   registerIpc()
-
-  const firstRun = isFirstRun()
-
-  if (firstRun) {
-    // Show settings window before dsh starts; wait for user to save
-    await new Promise<void>(resolve => {
-      const win = openSettingsWindow()
-      // Resolve when the user clicks Save (main process closes the window)
-      win.on('closed', () => resolve())
-    })
-  }
-
-  while (true) {
-    try {
-      parseModelConfiguration(loadSettings())
-      break
-    } catch (error) {
-      const { response } = await dialog.showMessageBox({
-        type: 'warning',
-        title: 'CAE Agent — 模型配置无效',
-        message: error instanceof Error ? error.message : '请检查模型配置后重试。',
-        buttons: ['打开设置', '退出'],
-        cancelId: 1,
-      })
-      if (response === 1) { app.quit(); return }
-      await new Promise<void>(resolve => {
-        const win = openSettingsWindow()
-        win.on('closed', () => resolve())
-      })
-    }
-  }
 
   try {
     launchingDsh = true

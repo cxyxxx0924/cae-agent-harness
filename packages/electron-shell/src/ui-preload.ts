@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('caeModels', {
   save: (settings: unknown) => ipcRenderer.invoke('models:save', settings),
   discover: (settings: unknown) => ipcRenderer.invoke('models:discover', settings),
   test: (settings: unknown) => ipcRenderer.invoke('models:test', settings),
+  onOpenSettings: (callback: () => void) => {
+    const listener = () => callback()
+    ipcRenderer.on('models:open-settings', listener)
+    return () => ipcRenderer.removeListener('models:open-settings', listener)
+  },
 })
 
 contextBridge.exposeInMainWorld('caeSimulation', {

@@ -392,11 +392,14 @@ window.__ModuleLoader__.load({
       .cae-simulation-settings .cae-settings-primary { background: #2563eb; border-color: #2563eb; color: white; }
       .cae-simulation-settings .cae-settings-primary:hover { background: #1d4ed8; }
       .cae-settings-message { min-height: 22px; margin: 12px 0 0; font-size: 13px; line-height: 1.7; }
+      .cae-configure-model { display: inline-flex; align-items: center; gap: 8px; padding: 5px 8px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+      .cae-configure-model:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .cae-configure-model:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
       @media (max-width: 520px) { .cae-settings-choice-row { grid-template-columns: 1fr; } .cae-settings-input-row { flex-wrap: wrap; } }
     `
 
     return {
-      inject: ['slots'],
+      inject: ['slots', 'conversation'],
       apply(ctx) {
         ctx.effect(() => {
           const style = document.createElement('style')
@@ -416,6 +419,75 @@ window.__ModuleLoader__.load({
           order: 3,
           label: '模型',
         }, ModelSettings))
+
+        if (window.caeModels) {
+          const api = window.caeModels
+          const openModelSettings = () => {
+            // The shell exposes its shared store on the public slot ledger.
+            const shell = ctx.slots.entries('sidebar.settings')[0]
+            shell?.store?.create().actions.openSection('cae-models')
+          }
+          const configured = api.load().then(settings => settings.configured).catch(() => false)
+          const whenConfigured = action => {
+            void configured.then(ready => {
+              if (ready) action()
+              else openModelSettings()
+            })
+          }
+
+          ctx.effect(() => api.onOpenSettings(openModelSettings))
+          function ConfigureModel({ locked, sessionId }) {
+            useEffect(() => {
+              if (!sessionId) return
+              const block = { reason: '请先选择模型并完成配置' }
+              const blocks = ctx.conversation.blocks
+              blocks.set(sessionId, block)
+              return () => {
+                if (blocks.storeFor(sessionId).getSnapshot() === block) blocks.set(sessionId, undefined)
+              }
+            }, [sessionId])
+            return element('button', {
+              type: 'button', className: 'cae-configure-model',
+              disabled: locked, onClick: openModelSettings,
+              'aria-label': '选择模型',
+            }, '选择模型', element('span', { 'aria-hidden': true }, '⌄'))
+          }
+          ctx.slots.inject('conversation.input.model', () => {
+            let active = true
+            let dispose
+            void configured.then(ready => {
+              if (!active || ready) return
+              dispose = ctx.slots.register({
+                name: 'conversation.input.model', priority: -100,
+              }, ConfigureModel)
+            })
+            return () => { active = false; dispose?.() }
+          })
+          ctx.slots.inject('conversation.hero.agentPreset', () => {
+            let active = true
+            let dispose
+            void configured.then(ready => {
+              if (!active || ready) return
+              dispose = ctx.slots.register({
+                name: 'conversation.hero.agentPreset', priority: -100,
+              }, ({ sessionId }) => sessionId ? null : element(ConfigureModel))
+            })
+            return () => { active = false; dispose?.() }
+          })
+
+          ctx.inject(['uiWorkspace'], scope => {
+            const navigation = scope.uiWorkspace
+            const startSession = navigation.startSession
+            const guardedStart = (...args) => whenConfigured(() => startSession.apply(navigation, args))
+            scope.effect(() => {
+              // Pointer controls and the New Session shortcut share this service method.
+              navigation.startSession = guardedStart
+              return () => {
+                if (navigation.startSession === guardedStart) navigation.startSession = startSession
+              }
+            })
+          })
+        }
       },
     }
   },

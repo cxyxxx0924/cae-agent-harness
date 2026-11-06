@@ -43,6 +43,7 @@ export function saveSettings(raw: unknown): void {
   writeFileSync(storePath(), JSON.stringify(settings, null, 2), 'utf8')
 }
 
-export function isFirstRun(): boolean {
-  return !existsSync(storePath())
+export function saveSimulationSettings(raw: unknown): void {
+  const settings = { ...loadSettings(), ...parseSimulationSettings(raw) }
+  writeFileSync(storePath(), JSON.stringify(settings, null, 2), 'utf8')
 }
