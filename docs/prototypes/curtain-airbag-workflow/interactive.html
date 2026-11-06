@@ -187,6 +187,10 @@
     .run-bar.active { display:flex; }
     .run-track { height:3px;flex:1;overflow:hidden;border-radius:2px;background:#e9eeeb; }
     .run-fill { width:0;height:100%;background:#35a78b;transition:width .12s linear; }
+    .solve-notice { flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;margin:2px 0 8px;padding:10px;border:1px solid #ead7b1;border-radius:5px;background:#fffaf0;color:#7a5a2a;line-height:1.55; }
+    .solve-notice svg { flex:0 0 15px;margin-top:1px; }
+    .solve-notice strong { display:block;font-size:11px;font-weight:650; }
+    .solve-notice p { margin:3px 0 0;color:#876d47;font-size:10px; }
     .stage-actions { min-height:39px;display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:0 12px 8px; }
     .action-btn { min-height:29px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid #e1e6e3;border-radius:5px;background:#fff;color:#59635f;font-size:9px;font-weight:620; }
     .action-btn:hover:not(:disabled) { border-color:#b9c9c2;background:#fafcfb; }
@@ -339,6 +343,7 @@
                 </div>
                 <div class="step-meta"><span><strong id="stageName">上传气帘几何</strong> <span id="stageDescription">支持 .igs / .iges 格式</span></span><span class="meta-state"><i class="live-indicator" id="stageDot" style="display:none"></i><span id="stageState">等待输入</span></span></div>
                 <div class="run-bar" id="runBar"><span id="runLabel">处理中</span><div class="run-track"><div class="run-fill" id="runFill"></div></div><span id="runPercent">0%</span></div>
+                <aside class="solve-notice hidden" id="solveNotice" role="status"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div><strong id="solveNoticeTitle">求解通常需要数小时</strong><p>具体耗时取决于模型规模、网格密度和计算资源，请预留足够的计算时间。</p></div></aside>
                 <div class="stage-actions" id="stageActions"></div>
               </section>
               <aside class="filelist">
@@ -435,6 +440,9 @@
       $('modeLabel').textContent=state.running?`${step.tool} · ${step.name}执行中`:status==='review'?`${step.name}结果待确认`:i===0?(state.igs?'几何文件已选择':'等待上传几何文件'):status==='done'?'流程已完成':status==='needs-file'?'等待车身 K 文件':`${step.name} · ${status==='ready'?'等待开始':'等待前置确认'}`;
       $('modeDot').style.background=state.running?'#5d8ee5':status==='review'?'#d99b52':status==='done'?'#62aa7c':'#d8a25c';
       $('runBar').classList.toggle('active',state.running);
+      $('runLabel').textContent=state.runKind==='solve'?'模拟求解进度':'处理中';
+      $('solveNotice').classList.toggle('hidden',i!==3||status==='done'||status==='locked');
+      $('solveNoticeTitle').textContent=state.running?'求解进行中，通常需要数小时':'求解通常需要数小时';
       renderActions();
     }
     function renderActions(){
@@ -486,12 +494,13 @@
       }
       if(action==='adjust'){$('adjustModal').classList.add('show');$('adjustText').focus()}
       if(action==='approve-mesh'){
-        state.status[2]='done';log('用户确认网格质量','success','车身 K 文件为组合求解必需输入');setCurrent(3,'ready');$('chatStatusCopy').textContent='网格已确认。请上传车身 K 文件，随后可以开始组合求解。';appendAssistant('网格已确认。请在右侧工作流中上传车身 .k 文件。');
+        state.status[2]='done';log('用户确认网格质量','success','车身 K 文件为组合求解必需输入');setCurrent(3,'ready');$('chatStatusCopy').textContent='网格已确认。请上传车身 K 文件，随后可以开始组合求解。求解通常需要数小时，请预留计算时间。';appendAssistant('网格已确认。请在右侧工作流中上传车身 .k 文件。组合求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。');
       }
       if(action==='back-partition'){setCurrent(1,'review')}
       if(action==='choose-body')$('bodyInput').click();
       if(action==='start-solve'){
         if(!state.body){toast('请先上传车身 K 文件');return}
+        $('chatStatusCopy').textContent='组合求解进行中，通常需要数小时，请耐心等待。';appendAssistant('已提交组合求解。求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。可在右侧查看执行进度；本页进度为模拟演示。');
         state.status[3]='running';
         simulate(3,'solve',6700,'done','组合 main.key · LS-DYNA · d3plot 健康检查',()=>{
           file('K',steps[3].file,'车身 + 气帘组合模型');file('D3','d3plot','LS-DYNA 求解结果');

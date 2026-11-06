@@ -187,6 +187,10 @@
     .run-bar.active { display:flex; }
     .run-track { height:3px;flex:1;overflow:hidden;border-radius:2px;background:#e9eeeb; }
     .run-fill { width:0;height:100%;background:#35a78b;transition:width .12s linear; }
+    .solve-notice { flex:0 0 auto;display:flex;align-items:flex-start;gap:8px;margin:2px 0 8px;padding:10px;border:1px solid #ead7b1;border-radius:5px;background:#fffaf0;color:#7a5a2a;line-height:1.55; }
+    .solve-notice svg { flex:0 0 15px;margin-top:1px; }
+    .solve-notice strong { display:block;font-size:11px;font-weight:650; }
+    .solve-notice p { margin:3px 0 0;color:#876d47;font-size:10px; }
     .stage-actions { min-height:39px;display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:0 12px 8px; }
     .action-btn { min-height:29px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid #e1e6e3;border-radius:5px;background:#fff;color:#59635f;font-size:9px;font-weight:620; }
     .action-btn:hover:not(:disabled) { border-color:#b9c9c2;background:#fafcfb; }
@@ -387,6 +391,7 @@
                 </div>
                 <div class="step-meta"><span><strong id="stageName">上传气帘几何</strong> <span id="stageDescription">支持 .igs / .iges 格式</span></span><span class="meta-state"><i class="live-indicator" id="stageDot" style="display:none"></i><span id="stageState">等待输入</span></span></div>
                 <div class="run-bar" id="runBar"><span id="runLabel">处理中</span><div class="run-track"><div class="run-fill" id="runFill"></div></div><span id="runPercent">0%</span></div>
+                <aside class="solve-notice hidden" id="solveNotice" role="status"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><div><strong id="solveNoticeTitle">求解通常需要数小时</strong><p>具体耗时取决于模型规模、网格密度和计算资源，请预留足够的计算时间。</p></div></aside>
                 <div class="stage-actions" id="stageActions"></div>
               </section>
               <aside class="filelist">
@@ -483,6 +488,9 @@
       $('modeLabel').textContent=state.running?`${step.tool} · ${step.name}执行中`:status==='review'?`${step.name}结果待确认`:i===0?(state.igs?'几何文件已选择':'等待上传几何文件'):status==='done'?(state.status.every(s=>s==='done')?'流程已完成':step.name+'已完成'):status==='needs-file'?'等待车身 K 文件':`${step.name} · ${status==='ready'?'等待开始':'等待前置确认'}`;
       $('modeDot').style.background=state.running?'#5d8ee5':status==='review'?'#d99b52':status==='done'?'#62aa7c':'#d8a25c';
       $('runBar').classList.toggle('active',state.running);
+      $('runLabel').textContent=state.runKind==='solve'?'模拟求解进度':'处理中';
+      $('solveNotice').classList.toggle('hidden',i!==3||status==='done'||status==='locked');
+      $('solveNoticeTitle').textContent=state.running?'求解进行中，通常需要数小时':'求解通常需要数小时';
       renderActions();
     }
     function renderActions(){
@@ -534,12 +542,13 @@
       }
       if(action==='adjust'){$('adjustModal').classList.add('show');$('adjustText').focus()}
       if(action==='approve-mesh'){
-        state.status[2]='done';log('用户确认网格质量','success','车身 K 文件为组合求解必需输入');setCurrent(3,'ready');$('chatStatusCopy').textContent='网格已确认。请上传车身 K 文件，随后可以开始组合求解。';appendAssistant('网格已确认。请在右侧工作流中上传车身 .k 文件。');
+        state.status[2]='done';log('用户确认网格质量','success','车身 K 文件为组合求解必需输入');setCurrent(3,'ready');$('chatStatusCopy').textContent='网格已确认。请上传车身 K 文件，随后可以开始组合求解。求解通常需要数小时，请预留计算时间。';appendAssistant('网格已确认。请在右侧工作流中上传车身 .k 文件。组合求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。');
       }
       if(action==='back-partition'){setCurrent(1,'review')}
       if(action==='choose-body')$('bodyInput').click();
       if(action==='start-solve'){
         if(!state.body){toast('请先上传车身 K 文件');return}
+        $('chatStatusCopy').textContent='组合求解进行中，通常需要数小时，请耐心等待。';appendAssistant('已提交组合求解。求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。可在右侧查看执行进度；本页进度为模拟演示。');
         state.status[3]='running';
         simulate(3,'solve',6700,'done','组合 main.key · LS-DYNA · d3plot 健康检查',()=>{
           file('K',steps[3].file,'车身 + 气帘组合模型');file('D3','d3plot','LS-DYNA 求解结果');
@@ -581,7 +590,7 @@
     $('submitAdjust').addEventListener('click',()=>{const text=$('adjustText').value.trim();if(!text){$('adjustText').focus();return}$('adjustModal').classList.remove('show');state.adjustments++;log('用户提交分区调整','success',text);$('adjustText').value='';simulate(1,'partition',2600,'review','应用调整意见 · 重跑分区 · 更新截图',()=>{file('HM',steps[1].file,'分区更新 v'+(3+state.adjustments));file('PNG','partition_preview_v'+(3+state.adjustments)+'.png','更新后的分区截图');appendAssistant('已按调整意见更新分区。请复核新版截图。')})});
     renderFiles();renderTrace();
 
-    const stagePreview = {"slug": "04-body-k-ready", "title": "车身 K 文件就绪", "badge": "等待提交求解", "current": 3, "status": ["done", "done", "done", "ready", "locked", "locked"], "upto": 3, "user": "网格确认通过，已上传车身 BIW.k。", "message": "网格已确认，车身 K 文件已加入工作流。组合求解的两项输入已齐备，请核对气帘与车身文件后提交求解。", "results": [["气帘 K", "CAB02_curtain.k"], ["车身 K", "BIW.k"], ["求解器", "LS-DYNA"]], "hint": "车身与气帘文件已就绪，尚未提交求解。", "files": [{"type": "K", "name": "BIW.k", "meta": "车身模型 · 求解输入"}, {"type": "PNG", "name": "mesh_quality.png", "meta": "网格质量截图"}, {"type": "K", "name": "CAB02_curtain.k", "meta": "气帘网格模型"}, {"type": "PNG", "name": "partition_preview.png", "meta": "分区截图"}, {"type": "HM", "name": "CAB02_partitioned.hm", "meta": "四功能区模型"}, {"type": "IGS", "name": "CAB02_head_curtain.igs", "meta": "输入几何 · 已读取"}], "traces": [{"text": "求解输入已齐备", "detail": "车身 K + 气帘 K", "kind": "success", "time": "10:40:00"}, {"text": "车身 K 文件上传完成", "detail": "BIW.k", "kind": "success", "time": "10:39:00"}, {"text": "用户确认网格结果", "detail": "进入组合求解准备", "kind": "success", "time": "10:38:00"}, {"text": "等待用户确认网格", "detail": "确认后进入求解准备", "kind": "success", "time": "10:37:00"}, {"text": "HyperMesh MCP · 网格生成完成", "detail": "气帘 K 文件 + 网格截图", "kind": "success", "time": "10:36:00"}, {"text": "用户确认分区结果", "detail": "进入网格阶段", "kind": "success", "time": "10:35:00"}, {"text": "等待用户确认分区", "detail": "确认后才开始网格", "kind": "success", "time": "10:34:00"}, {"text": "分区产物已生成", "detail": ".hm 模型 + 分区截图", "kind": "success", "time": "10:33:00"}, {"text": "HyperMesh MCP · 分区完成", "detail": "四功能区识别完成", "kind": "success", "time": "10:32:00"}, {"text": "几何读取完成", "detail": "轮廓预览已生成", "kind": "success", "time": "10:31:00"}, {"text": "气帘 IGS 文件上传完成", "detail": "CAB02_head_curtain.igs", "kind": "success", "time": "10:30:00"}]};
+    const stagePreview = {"slug": "04-body-k-ready", "title": "车身 K 文件就绪", "badge": "等待提交求解", "current": 3, "status": ["done", "done", "done", "ready", "locked", "locked"], "upto": 3, "user": "网格确认通过，已上传车身 BIW.k。", "message": "网格已确认，车身 K 文件已加入工作流。组合求解的两项输入已齐备，请核对气帘与车身文件后提交求解。求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源，请预留足够的计算时间。", "results": [["气帘 K", "CAB02_curtain.k"], ["车身 K", "BIW.k"], ["求解器", "LS-DYNA"], ["预计耗时", "通常数小时，以实际计算为准"]], "hint": "车身与气帘文件已就绪，尚未提交求解。请预留数小时的计算时间。", "files": [{"type": "K", "name": "BIW.k", "meta": "车身模型 · 求解输入"}, {"type": "PNG", "name": "mesh_quality.png", "meta": "网格质量截图"}, {"type": "K", "name": "CAB02_curtain.k", "meta": "气帘网格模型"}, {"type": "PNG", "name": "partition_preview.png", "meta": "分区截图"}, {"type": "HM", "name": "CAB02_partitioned.hm", "meta": "四功能区模型"}, {"type": "IGS", "name": "CAB02_head_curtain.igs", "meta": "输入几何 · 已读取"}], "traces": [{"text": "求解输入已齐备", "detail": "车身 K + 气帘 K", "kind": "success", "time": "10:40:00"}, {"text": "车身 K 文件上传完成", "detail": "BIW.k", "kind": "success", "time": "10:39:00"}, {"text": "用户确认网格结果", "detail": "进入组合求解准备", "kind": "success", "time": "10:38:00"}, {"text": "等待用户确认网格", "detail": "确认后进入求解准备", "kind": "success", "time": "10:37:00"}, {"text": "HyperMesh MCP · 网格生成完成", "detail": "气帘 K 文件 + 网格截图", "kind": "success", "time": "10:36:00"}, {"text": "用户确认分区结果", "detail": "进入网格阶段", "kind": "success", "time": "10:35:00"}, {"text": "等待用户确认分区", "detail": "确认后才开始网格", "kind": "success", "time": "10:34:00"}, {"text": "分区产物已生成", "detail": ".hm 模型 + 分区截图", "kind": "success", "time": "10:33:00"}, {"text": "HyperMesh MCP · 分区完成", "detail": "四功能区识别完成", "kind": "success", "time": "10:32:00"}, {"text": "几何读取完成", "detail": "轮廓预览已生成", "kind": "success", "time": "10:31:00"}, {"text": "气帘 IGS 文件上传完成", "detail": "CAB02_head_curtain.igs", "kind": "success", "time": "10:30:00"}]};
     function initializeStagePreview() {
       activate();
       Object.assign(state, { current:stagePreview.current, status:stagePreview.status.slice(), igs:'CAB02_head_curtain.igs',
