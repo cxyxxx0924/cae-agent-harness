@@ -1,7 +1,8 @@
 import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 
 const dshRequire = createRequire(import.meta.resolve('@deepseek-ai/dsh/package.json'))
-const { Config, inject, apply: applyPiAi } = await import(dshRequire.resolve('@deepseek-ai/dsh-llm-pi-ai'))
+const { Config, inject, apply: applyPiAi } = await import(pathToFileURL(dshRequire.resolve('@deepseek-ai/dsh-llm-pi-ai')).href)
 
 export { Config, inject }
 

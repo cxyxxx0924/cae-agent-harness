@@ -1,6 +1,6 @@
 {
   "name": "cae-agent-harness",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CAE 气帘仿真 Agent — dsh + MCP + Electron",
   "private": true,
   "type": "module",

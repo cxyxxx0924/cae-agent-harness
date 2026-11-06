@@ -209,8 +209,8 @@ pnpm dist:win:installer
 
 输出目录为 `packages/electron-shell/dist-app/`，文件名中的版本号跟随应用版本：
 
-- `CAE-Agent-0.1.0-Windows-x64.zip`：完整解压后打开 `CAE Agent.exe`，不能只复制 EXE。
-- `CAE-Agent-0.1.0-Windows-x64-Setup.exe`：安装向导，可选择安装目录，安装后从快捷方式启动。
+- `CAE-Agent-0.1.1-Windows-x64.zip`：完整解压后打开 `CAE Agent.exe`，不能只复制 EXE。
+- `CAE-Agent-0.1.1-Windows-x64-Setup.exe`：安装向导，可选择安装目录，安装后从快捷方式启动。
 - 每个发行文件都有对应的 `.sha256` 校验文件。
 
 构建环境要求 Node.js >= 24.9.0 和 pnpm 10.x，支持在 macOS 或 Windows 上构建 Windows x64 版本。

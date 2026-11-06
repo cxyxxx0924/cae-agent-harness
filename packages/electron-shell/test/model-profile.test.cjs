@@ -6,6 +6,7 @@ const { createRequire } = require('node:module')
 const { tmpdir } = require('node:os')
 const { join, resolve } = require('node:path')
 const { test } = require('node:test')
+const { pathToFileURL } = require('node:url')
 
 async function startModelRuntime(t, model, models = [], configured = true) {
   const temporaryHome = await mkdtemp(join(tmpdir(), 'cae-model-test-'))
@@ -79,7 +80,7 @@ async function startModelRuntime(t, model, models = [], configured = true) {
   const patch = join(temporaryHome, 'test.patch.yml')
   await writeFile(patch, '- id: mcp-cae\n  disabled: true\n')
   const dshRequire = createRequire(require.resolve('@deepseek-ai/dsh/package.json'))
-  const { createLaunchEnvironmentSnapshot } = await import(dshRequire.resolve('@deepseek-ai/dsh-launch-environment'))
+  const { createLaunchEnvironmentSnapshot } = await import(pathToFileURL(dshRequire.resolve('@deepseek-ai/dsh-launch-environment')).href)
   const { runProfile } = await import('@deepseek-ai/dsh/profile-boot')
   const runtime = await runProfile({
     environment: createLaunchEnvironmentSnapshot([{ source: 'process', values: process.env }]),

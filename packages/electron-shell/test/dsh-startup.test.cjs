@@ -101,6 +101,7 @@ test('the actual dsh CLI reaches authenticated readiness with the CAE profile', 
     env: {
       ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1',
       DEEPSEEK_API_KEY: 'sk-startup-smoke-only', LLM_MODEL: 'deepseek-chat',
+      CAE_DESKTOP: '1', CAE_MODELS_CONFIGURED: '0',
       CAE_ENABLE_HYPERWORKS_MCP: '0', CAE_ENABLE_QILAN_MCP: '0',
     },
     stdio: ['ignore', process.platform === 'win32' ? 'overlapped' : 'pipe', 'pipe'],
@@ -119,6 +120,21 @@ test('the actual dsh CLI reaches authenticated readiness with the CAE profile', 
     const url = new URL(await waitForDsh(proc, origin, 15_000))
     assert.equal(url.origin, origin)
     assert.ok(url.searchParams.get('token'))
+    const authenticated = await fetch(url, { redirect: 'manual' })
+    assert.equal(authenticated.status, 303)
+    const cookie = authenticated.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
+    const headers = { Cookie: cookie }
+    const html = await (await fetch(origin, { headers })).text()
+    assert.match(html, /@cae\/dsh-ui/, 'desktop settings must be in the authenticated client boot graph')
+    const graph = JSON.parse(/globalThis\["__DSH_BOOT__"\]\s*=\s*(\{.*?\})<\/script>/.exec(html)?.[1] ?? 'null')
+    assert.ok(graph, 'client boot graph must be readable')
+    const entry = graph.entries.find(entry => entry.id === '@cae/dsh-ui')
+    assert.ok(entry, 'model, simulation and cache settings must activate before opening chat')
+    const bundle = await fetch(new URL(entry.url, origin), { headers })
+    assert.equal(bundle.status, 200)
+    const source = await bundle.text()
+    for (const id of ['cae-models', 'cae-simulation', 'cae-cache']) assert.ok(source.includes(id), `missing settings section: ${id}`)
+    assert.doesNotMatch(stderr, /cae-ui .*failed to import/)
   } catch (error) {
     throw new Error(`${error.message}\n${stderr}`)
   }
