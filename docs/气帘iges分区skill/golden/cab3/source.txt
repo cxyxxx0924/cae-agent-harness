@@ -1,0 +1,27 @@
+# 金标准 ③ · cab3（6P 图人工分组）
+
+## 出处
+- 原始 IGES：`E:/work/AI_CAB/气帘CAD数据/NEW_CAB_igs/cab3/S31 CAB_AIR BAG ASSY_6P_20240827.iges`
+  （本目录存为 `source.iges`）
+- 金标准来源：**用户 2026-10-23 手工精分** `E:/work/AI_CAB/气帘CAD数据/NEW_CAB_igs/cab3/cab3.hm`
+  （本目录存为 `cab3.hm`）。动因：双金标准先验盲测该图时发现"同类件不同判"
+  （顶排 9 个充气口单元被拆成 TETHER/CAVITY/lines0 三种、右下"圆环+杆"两种分法、
+  中部楔形区整体未分配），用户据此手工分出本金标准。
+
+## 组件→类别映射（几何+视觉综合研判定）
+`cab3.hm` 的 911 线分在 5 个 comp：
+- `component1`(67)  → **BELT**  最外整圈闭合包络
+- `component2`(109) → **CAVITY** 大气腔环 + 右下"圆环+杆"腔室
+- `component3`(40)  → **SEAM**  3 个内层孤立闭合环（缝线面）
+- `component4`(586) → **TETHER** 顶排 9 个充气口硬件 + 右簇 + 密集短线网
+  （586 条 88% 闭合、len_med≈0.012、n_tan≈17——6P 图的 TETHER 密集网特征）
+- `_lines0_Wireframe`(109) → lines0（用户已按此命名）
+
+## 内容
+- `cab3.hm` — 用户手工金标准（HyperMesh 文件，含 comp 结构）
+- `golden_line_comp.json` — 从 cab3.hm 同源导出的金标签（911 线 = BELT 67 / CAVITY 109 / SEAM 40 / TETHER 586 + lines0 109）
+- `features.json` — 同源特征（从 cab3.hm 自身经 t02 导出，line-id 与金标签同序）
+- `source.iges` — 原始图纸
+
+## 自动复现验收
+联合先验逐线 **802/802，MISMATCH=0**；自动产出 `cap3.hm` 与人工五组逐 id 相同（VERIFY_FAIL=0）。

@@ -1,0 +1,61 @@
+{
+  "_comment": "auto_gate 可迭代门禁规则（案例无关）。换案例只改 case 配置；本文件门限/口径随每次实战迭代完善。长度单位 mm。每一项都是显式知识，可被后续案例修正。",
+  "_version": "2026-10-25.2",
+  "_changelog": [
+    {"v": "2026-10-25.1", "note": "首版: 拓扑/分层/环面积周长/环几何/拉带 五大检查 + 反假阳性口径(逐线拆解, 皮带腔界面识别)"},
+    {"v": "2026-10-25.2", "note": "cab1 回归新增: (1) 拓扑加'孤儿节点'检查并配 clean_kfile 自动清除(cab1 实删 33790 个, 占 29%, 文件 -15%); (2) 分层豁免跨角色界面共节点(拉带接布带 146 节点可取 Y0); (3) 环周长改凸包周长(闭合环如气腔/缝线亦有定义); (4) 环几何新增'跨 PID 覆盖'三级判定 —— 自有 fabric=局部特征WARN / 他 PID fabric=跨PID或错标WARN / 都无=真缺口FAIL。cab1 的 BELT74/75(充气口领圈)由气腔 fabric 覆盖 -> 跨PID WARN, 非 belt 真缺口。"},
+    {"v": "2026-10-31.1", "note": "cab2 新增 thickness_axis 显式厚度轴(cab2 几何在 X-Y 平面、厚度=Z, 与 cab1 的 X-Z/Y 不同; 只在读入时重排坐标, 判据逻辑不变, cab1 回归不受影响), 并按实测厚度跨度做配错告警。"}
+  ],
+
+  "topology": {
+    "min_edge_mm": 3.0,
+    "min_edge_hard_fail": false,
+    "min_edge_note": "规范2.2 最小单元>3mm；hard_fail=false 时超限仅 WARN 并列出计数(局部尖角常见)",
+    "require_connected_per_pid": true,
+    "forbid_dup_nodes": true,
+    "forbid_dup_elems": true
+  },
+
+  "layers": {
+    "y_match_tol": 0.05,
+    "interface_collapse_tol": 0.6,
+    "_note": "各角色 Y 位置写进 case 配置；此处只定容差。界面节点(如气腔边界收 Y0)允许落在 interface_collapse_tol 内。"
+  },
+
+  "ring_geom": {
+    "area_ratio_min": 0.90,
+    "area_ratio_max": 1.10,
+    "centroid_tol_mm": 5.0,
+    "boundary_dev_main_mm": 5.0,
+    "chord_error_adaptive": {
+      "enabled": true,
+      "dp_eps": 0.2,
+      "_note": "直边代圆弧固有矢高 L^2/(8R); allowed = dp_eps + L^2/(8R)。避免小半径圆弧被固定门限误判。"
+    },
+    "per_line_breakdown": {
+      "enabled": true,
+      "local_feature_mm": 20.0,
+      "cover_tol_mm": 3.0,
+      "verdict_on_local_only": "WARN",
+      "_note": "关键反假阳性口径(沉淀自 cab1): 环整体 boundary FAIL 若仅由少数局部 CAD 线(如充气口领圈)驱动, 且这些线的点已被网格节点在 cover_tol 内覆盖, 则降级为 WARN 而非 FAIL。主环仍按 boundary_dev_main_mm 判定。"
+    }
+  },
+
+  "ring_area_perimeter": {
+    "area_ratio_min": 0.90,
+    "area_ratio_max": 1.10,
+    "perimeter_ratio_min": 0.85,
+    "perimeter_ratio_max": 1.20,
+    "_note": "节点路程 = 该环网格节点到对应 CAD 线的拟合闭合周长; 用于自出图审查环的大小/形状自洽。"
+  },
+
+  "tether": {
+    "expect_connect_to": ["belt"],
+    "forbid_connect_to": ["seam"],
+    "belt_cavity_interface_benign": true,
+    "interface_y_tol": 0.6,
+    "min_shared_belt_nodes": 1,
+    "max_perim_frac": 0.5,
+    "_note": "反假阳性口径(沉淀自 cab1): tether∩cavity 共节点若同时属于 belt 且 |Y|<=interface_y_tol, 属'拉带经布带穿过皮带腔界面'的正常拓扑(参考模型 5P-BAG_004 明确允许), 不计误连。只有落在 cavity 双层(|Y|>interface_y_tol)的才算真误连。"
+  }
+}

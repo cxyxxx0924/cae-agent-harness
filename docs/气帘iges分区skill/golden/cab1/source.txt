@@ -1,0 +1,27 @@
+# 金标准 ② · cab1（5P-BAG 图人工分组）
+
+## 出处
+- 原始 IGES：`E:/work/AI_CAB/气帘CAD数据/cab_hm1.iges`（本目录存为 `source.iges`；
+  注意 `E:/work/AI_CAB/5P-BAG.igs` 是同一张安全气囊的另一份导出，338 线等价）
+- 金标准来源：**用户 2026-10-23 手工分组** `E:/work/AI_CAB/气帘CAD数据/cab1.hm`
+  （本目录存为 `cab1.hm`）。
+
+## 组件→类别映射（几何+视觉综合研判定，非视觉猜测）
+`cab1.hm` 的曲线分在 5 个 comp（用户命名 component1–4 + 参考层）：
+- `component1`(7)  → **BELT**  贴凸包最外闭环（含 1 条 1562mm 贯穿线）
+- `component2`(2)  → **CAVITY** 内缩闭合环
+- `component3`(56) → **SEAM**  内层散弧
+- `component4`(249)→ **TETHER** 局部硬件簇（顶排安装凸台 + 左充气口）
+  （注意：component4 是 249 条 median 3.3mm 短线、64% 闭合、高 n_tan 的硬件簇，
+  **不是**外包络——视觉第一眼易误判，几何聚合 dhull/闭合度/半径带/线长才是判据）
+- `_5P-BAG_Wireframe`(24) → lines0
+
+## 内容
+- `cab1.hm` — 用户手工金标准（HyperMesh 文件，含 comp 结构）
+- `golden_line_comp.json` — 从 cab1.hm 同源导出的金标签（338 线 = BELT 7 / CAVITY 2 / SEAM 56 / TETHER 249 + lines0 24）
+- `features.json` — 同源特征（从 cab1.hm 自身经 t02 导出，line-id 与金标签同序）
+- `source.iges` — 原始图纸
+
+## 自动复现验收
+联合先验逐线 **314/314，MISMATCH=0**；自动产出 `cap1.hm` 与人工五组逐 id 相同（VERIFY_FAIL=0）。
+同图 `5P-BAG.igs` 自动导入亦复现 BELT=7/CAVITY=2/SEAM=56/TETHER=249。

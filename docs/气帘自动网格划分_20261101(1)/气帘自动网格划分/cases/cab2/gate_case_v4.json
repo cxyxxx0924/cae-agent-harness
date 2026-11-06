@@ -1,0 +1,28 @@
+{
+  "_comment": "cab2 v4：拉带锚固边受布带约束（三刀切），锚固排 5.00mm 等距共节点。",
+  "case": "cab2",
+  "k_file": "E:/work/AI_CAB/onekey/cab2_curtain_airbag_v4.k",
+  "cad_lines_2d": "${WORKDIR}/out/lines_pts_2d.txt",
+  "thickness_axis": "Z",
+  "pid_scheme": {
+    "belt": 2,
+    "cavity": 3,
+    "seam": 4,
+    "tether": 5
+  },
+  "cad_tag": {
+    "belt": "L1",
+    "cavity": "L2",
+    "seam": "L3"
+  },
+  "layers": {
+    "belt": 0.0,
+    "cavity": [
+      -0.5,
+      0.5
+    ],
+    "seam": 0.0,
+    "tether": -1.0
+  },
+  "mesh_nominal_mm": 5.0
+}

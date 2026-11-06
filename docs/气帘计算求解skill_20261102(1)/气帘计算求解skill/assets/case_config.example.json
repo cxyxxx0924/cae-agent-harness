@@ -1,0 +1,64 @@
+{
+  "_说明": "换一个气帘时的参数表模板：复制成 case_config.json，只改这里的值，其余卡片全部照抄参考 deck。对应 references/10 §10.2。",
+  "_案例": "2026-10-31 onekey（BIW_clean.k + cab1_60ms.k，参考 Model_update_Move_Iter04，200ms 跑通）",
+
+  "project": "onekey_200ms",
+  "workdir": "E:/work/AI_CAB/onekey",
+
+  "inputs": {
+    "ref_deck": "E:/work/AI_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/main.key",
+    "cab_k": "E:/work/AI_CAB/onekey/cab1_60ms.k",
+    "biw_k": "E:/work/AI_CAB/onekey/BIW_clean.k",
+    "mat_k": "E:/work/AI_CAB/onekey/MAT.K"
+  },
+
+  "placement": {
+    "DY": -615.0,
+    "DZ": -270.0,
+    "_由": "solve_dz_gap.py 按'气帘顶→车身顶'距离 p50 相等回算（P-S35），禁肉眼对齐",
+    "noff": 30000000,
+    "_noff": "气帘重编号偏移，避开车身 ID 段（P-S19）；曲线/材料引用同步 +NOFF"
+  },
+
+  "tether": {
+    "belt_count": 9,
+    "inflator_top": 1,
+    "_proj": "同 X 邻域(XTOL≈45mm) + Z 向上，禁全局最近（P-S28）；验收 dXY<64mm（P-S38）",
+    "with_airbag_spc": true,
+    "_spc": "气帘侧起点 TX=TY=1 / TZ=0，Z 自由"
+  },
+
+  "damper": {
+    "c": 0.2,
+    "_c": "照抄参考 MAT_DAMPER_VISCOUS，禁止为消抖改小（P-S49）",
+    "dt": 4.95e-4,
+    "anchor_mass_target_tonne": 1.2e-4,
+    "_mass": "1.2e-4 tonne = 120 g（tonne×1e6=g，别写成 120 mg）；由 C<2m/dt 反算需 ≥4.95e-5 tonne，再取 2.4 倍裕度（P-S51）",
+    "_thickness": "估算节点质量用 SECTION_SHELL 的 T1（本例 1.0mm），禁用裸布 0.3mm（P-S57）"
+  },
+
+  "run": {
+    "endtim": 200.0,
+    "_endtim": "与参考一致=200ms（P-S39）；先 3ms 探针再全量，200ms 实测 13h01m（P-S40）",
+    "solver": "MPP mpiexec -n 2 / SMP memory=50000000 ncpu=2（渲染用 SMP，P-S42/P-S44）"
+  },
+
+  "gates": {
+    "parity_audit": "设置类卡全 MATCH；等价偏离逐条 --ack；唯一允许的物理偏离只应一条",
+    "damper_ratio_max": 0.5,
+    "mass_increase_pct_max": 3.0,
+    "hourglass_pct_max": 3.0,
+    "energy_ratio_target": 1.0
+  },
+
+  "regression_baseline": {
+    "ke_max_3ms": 5.70e-3,
+    "ke_max_3ms_ref": 1.16e-2,
+    "first_frame_jitter_mm": 1.3,
+    "jitter_before_fix_mm": 46.6,
+    "run_200ms_walltime": "13h01m",
+    "run_200ms_steps": 404041,
+    "added_mass_pct": 0.023,
+    "hourglass": 0
+  }
+}

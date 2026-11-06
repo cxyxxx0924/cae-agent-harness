@@ -1,0 +1,11 @@
+{
+  "_comment": "auto_gate 案例配置样例(cab1 原始版)。用法: WORKDIR=E:/work/AI_CAB/work2026 python run_gate.py --case cases/cab1/gate_case.json。换新气帘: 复制本文件改这些字段即可, 脚本零硬编码。门限/口径在 gate_rules.json 迭代。",
+  "case": "cab1",
+  "k_file": "${WORKDIR}/out/cab1_step1_2026.k",
+  "cad_lines_2d": "${WORKDIR}/out/lines_pts_2d.txt",
+  "map": "xy",
+  "pid_scheme": { "belt": 2, "cavity": 3, "seam": 4, "tether": 5 },
+  "cad_tag": { "belt": "BELT", "cavity": "CAV", "seam": "SEAM" },
+  "layers": { "belt": 0.0, "cavity": [-0.5, 0.5], "seam": 0.0, "tether": -1.0 },
+  "mesh_nominal_mm": 5.0
+}

@@ -1,0 +1,58 @@
+{
+  "skill": "qilan-iges-partition",
+  "version": "2026.10.21.2",
+  "scope": "原始 IGES/IGS/DXF -> 四分区 partitioned.hm (端到端; 止于分区, 网格化在 hypermesh2026_CURVEtoMESH_skill)",
+  "entry": {
+    "end_to_end": "scripts/run_full.sh",
+    "usage": "WORKDIR=<ws> IGES=<raw> SEED=<seed.json> DELTA=v14 SKIP_CONFIRM=1 bash scripts/run_full.sh",
+    "stages": ["S0 import", "S1 geom", "S2 pts", "S3 seed(人工)", "S4 delta", "S5 render+report", "S6 export", "S7 comps", "S8 verify"]
+  },
+  "hyperworks": {
+    "version": "2026.0.0.27",
+    "home": "D:\\Program Files\\Altair\\2026",
+    "hmbatch": "D:\\Program Files\\Altair\\2026\\hwdesktop\\hm\\bin\\win64\\hmbatch.exe",
+    "user_profile": "LsDyna Keyword971_R16.0",
+    "note": "2026 hmbatch -tcl 中文路径可正常 source (P40, 实证, 旧结论作废)"
+  },
+  "python": "C:/Users/hekie/.workbuddy/binaries/python/envs/default/Scripts/python.exe",
+  "workdir_convention": {
+    "env": "WORKDIR",
+    "curves_hm": "curves.hm",
+    "geom_features": "out/geom_features.txt",
+    "lines_pts": "out/lines_pts.txt",
+    "seed_json": "out/<SEED>.json (如 newcab_classify8.json, 119/78/59/572)",
+    "classify_final": "out/classify_final.json",
+    "class_lists": "out/class_lists.tcl",
+    "report_final": "out/final_report.txt",
+    "delivery": "partitioned.hm",
+    "hm_in_override": "HM_IN",
+    "hm_out_override": "HM_OUT",
+    "delta_src_override": "V9_SRC / V10_SRC / V12_SRC / V13_SRC / V14_SRC (绝对路径或 out/ 下裸名)"
+  },
+  "classes": ["BELT", "CAVITY", "SEAM", "TETHER"],
+  "tangent_rule": {
+    "smooth_join": "((E=='ep') != (F=='ep')) -> dot ~= +1 ; else dot ~= -1",
+    "tolerance": 0.02,
+    "weld_tol_mm": 8.0
+  },
+  "baseline_newcab_v14": {
+    "input": "E:/work/AI_CAB/onekey/work/input_newcab/newcab.iges",
+    "lines": 828,
+    "counts": {"BELT": 34, "CAVITY": 89, "SEAM": 43, "TETHER": 555},
+    "unassigned_lines0": 107,
+    "regression": "端到端回归通过 (2026-10-21 19:15, 新工作区 work/newcab_test): t00 828线/1comp -> ... -> t07 ALL_OK=1 -> t08 VERIFY_FAIL=0 TOTAL=721"
+  },
+  "hard_rules": [
+    "P35 *movemark 第三参是 comp 名称; *writefile 前必须 file delete -force",
+    "P36 切线判据按端点类型配对, 禁止只查 dot<-0.985",
+    "P37 IGS 圆圈是多段弧, 端点追踪会误判成 V/方头",
+    "P38 校验必须逐 id 比集合 + 回读 bbox/线长",
+    "P39 *readfile 目标不存在 -> 报告不生成, 查 mtime 防旧报告误判",
+    "P40 hmbatch -tcl 中文路径可用 (旧坑作废)",
+    "P49 t08 必须设 WORKDIR 且跑前 rm 旧报告, 否则读到上一版假 PASS",
+    "P53 delta 脚本 *_SRC 支持裸文件名(自动拼 out/)与绝对路径",
+    "P54 pipefail 下禁止用 | head 截断 Python 输出(SIGPIPE 整链失败)",
+    "渲染人眼复核是强制步骤, 禁止只凭自动扫描落分类",
+    "用户发标注截图时必须先渲染带坐标标注的图逐位核对再动手 (v14 明示)"
+  ]
+}

@@ -1,0 +1,413 @@
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/5P-BAG.igs 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-23-2026 18:11:33 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-23-2026 18:11:33 
+Info        : Translation duration - 0.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/onekey/work/input_newcab/newcab.iges 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-23-2026 19:00:10 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-23-2026 19:00:11 
+Info        : Translation duration - 1.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/气帘CAD数据/NEW_CAB_igs/cab3/S31 CAB_AIR BAG ASSY_6P_20240827.iges 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-23-2026 19:19:51 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-23-2026 19:19:52 
+Info        : Translation duration - 1.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/skill/气帘iges分区skill/golden/cab3/source.iges 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-23-2026 20:50:09 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-23-2026 20:50:14 
+Info        : Translation duration - 5.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/分区训练/igs/cab2.iges 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-31-2026 21:57:33 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-31-2026 21:57:34 
+Info        : Translation duration - 1.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/分区训练/igs/cab1.igs 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-31-2026 21:58:33 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-31-2026 21:58:33 
+Info        : Translation duration - 0.000000 sec 
+**************************************************************************** 
+
+ 
+**************************************************************************** 
+Info        : IGES Reader 
+Info        : HyperWorks Version 2026.0.0.27 
+Info        : Input file - E:/work/AI_CAB/分区训练/igs/cab3.iges 
+Info        : Translator used - D:\Program Files\Altair\2026\hwdesktop\io\afc_translators\bin\win64\iges_1\iges_reader.dll 
+Info        : Translation start time - 10-31-2026 21:59:24 
+Info        :  
+Info        :  
+Info        : -------------------------------------------------- 
+Info        : Import options selected in HyperMesh 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        :   Command line options 
+Info        :   ---------------------- 
+Info        :   DisplayRepresentation              = off 
+Info        :  
+Info        :   INI file options 
+Info        :   ---------------------- 
+Info        :   ImportFreeCurves                   = on 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipEntities                       =  
+Info        :   TagsAsMetadata                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   TraverseGroups                     = on 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Vendors                            = pro/engineer;togo-cad;i-deas;solidworks_2001;solidworks;catia_solutions_v4;cadfix 
+Info        : -------------------------------------------------- 
+Info        :  
+Info        : No specific vendor identified, using default options 
+Info        :   TrimWithModelSpaceCurves           = off 
+Info        :   TrimRevolvedWithModelSpaceCurves   = off 
+Info        :   TrimWithPreferredRepresentation    = off 
+Info        :   CheckFacet                         = on 
+Info        :   UseAnsys128Format                  = off 
+Info        :   Construction                       = off 
+Info        :   Annotation                         = off 
+Info        :   Blanked                            = off 
+Info        :   ImportFreePoints                   = on 
+Info        :   ImportFreeCurves                   = on 
+Info        :   LegacyHierarchyAsMetadata          = off 
+Info        :   SkipCreationOfSolid                = off 
+Info        :   SkipConnectivityComputation        = off 
+Info        :   TraverseGroups                     = on 
+Info        :   Transform402form16                 = off 
+Info        :   ImportType                         = ASSEMBLY 
+Info        :   PropertyAsGroup                    = NEVER_MANAGE 
+Info        :   SkipEntities                       =  
+Info        :  
+Info        : Translation end time - 10-31-2026 21:59:25 
+Info        : Translation duration - 1.000000 sec 
+**************************************************************************** 
+
+ 

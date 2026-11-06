@@ -1,0 +1,13 @@
+<Slide style={{ padding: 0, backgroundColor: '#FFFFFF', fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' }}>
+  <Box style={{ height: '100%', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', paddingLeft: 110, paddingRight: 110 }}>
+    <Text style={{ fontSize: 18, color: '#1E4FA8', fontWeight: 'bold', letterSpacing: 2 }}>C-NCAP 附录G · G.14.3 侧面气帘展开性能评估</Text>
+    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1A2230', marginTop: 18, lineHeight: 1.2 }}>侧面气帘展开性能评估</Text>
+    <Box style={{ width: 120, height: 4, backgroundColor: '#1E4FA8', marginTop: 22, marginBottom: 22 }} />
+    <Text style={{ fontSize: 22, color: '#4A5568', lineHeight: 1.5 }}>基于 LS-DYNA 侧面碰撞模型后处理，结合参考报告头部重心坐标，依据法规进行评价</Text>
+    <Box style={{ marginTop: 48, flexDirection: 'column', gap: 10 }}>
+      <Text style={{ fontSize: 16, color: '#8B97A8' }}>工作文件：<填入 .h3d 文件名>（HyperView 结果）</Text>
+      <Text style={{ fontSize: 16, color: '#8B97A8' }}>参考模板：<填入 参考报告 .pptx></Text>
+      <Text style={{ fontSize: 16, color: '#8B97A8' }}>评估日期：<填入 日期></Text>
+    </Box>
+  </Box>
+</Slide>

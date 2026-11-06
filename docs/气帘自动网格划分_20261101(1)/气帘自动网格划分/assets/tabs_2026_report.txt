@@ -1,0 +1,17 @@
+tab0_up: surf=1 elems=170
+tab0_dn: surf=2 elems=264
+tab1_up: surf=3 elems=187
+tab1_dn: surf=4 elems=263
+tab2_up: surf=5 elems=166
+tab2_dn: surf=6 elems=263
+tab3_up: surf=7 elems=154
+tab3_dn: surf=8 elems=263
+tab4_up: surf=9 elems=138
+tab4_dn: surf=10 elems=251
+tab5_up: surf=11 elems=154
+tab5_dn: surf=12 elems=263
+tab6_up: surf=13 elems=154
+tab6_dn: surf=14 elems=263
+tabc7: surf=15 elems=232
+tabh8: surf=16 elems=94
+TABS DONE

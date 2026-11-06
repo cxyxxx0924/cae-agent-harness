@@ -1,0 +1,60 @@
+{
+  "_doc": "case.json — 单个案例的全部可变参数。换案例只改这个文件，脚本不动。字段说明见 cases/README.md 与 references/00_RUNBOOK_接新气帘.md",
+  "case": "cab2",
+  "model": "cab2.hm",
+  "plane": "xy",
+  "thickness_axis": "z",
+  "loop_tol": 0.8,
+
+  "layers": [
+    {"role": "belt",   "cid": 2, "tag": "L1", "pid": 2, "z": [0.0]},
+    {"role": "cavity", "cid": 3, "tag": "L2", "pid": 3, "z": [-0.5, 0.5]},
+    {"role": "seam",   "cid": 4, "tag": "L3", "pid": 4, "z": [0.0]},
+    {"role": "tether", "cid": 5, "tag": "L4", "pid": 5, "z": [-1.0]}
+  ],
+
+  "_parts_doc": "必需的网格部件。缺任何一个组装阶段直接 SystemExit，不再只打 WARN —— cab2 曾整块丢侧拉带（references/04 P49）",
+  "parts": ["belt", "cavity", "seam", "tether", "side"],
+
+  "seam": {
+    "min_area": 200,
+    "sort": "area_desc",
+    "max_count": 40
+  },
+
+  "mesh": {
+    "size": 5.0,
+    "seam_size": 5.0,
+    "bl_thick": 4.0,
+    "bl_layer": 1,
+    "bl_etype": "mixed"
+  },
+
+  "quality_gate": {
+    "min_angle_quad": 30.0,
+    "min_angle_tria": 20.0,
+    "aspect_max": 3.0,
+    "jacobian_min": 0.6,
+    "warp_max": 5.0,
+    "tria_ratio_max": 0.08,
+    "size_gradient_max": 2.0
+  },
+
+  "_assemble_doc": "定版组装参数（cab2 v8 交付级）。weak_anchor_min=1：只有 0 个外边界锚点的侧条走内部锚固，取 8 会误伤 6 个凸台。",
+  "assemble": {
+    "anchored_tethers": true,
+    "tab_tol": 0.35,
+    "snap_inside_tol": 3.0,
+    "weak_anchor_min": 1,
+    "edge_band": 4.0,
+    "tabs_polys": "out/tether_full.json",
+    "step2": "tabs_triple_export.txt",
+    "step2b": "cab2_step2b_side2.txt"
+  },
+
+  "_gates_doc": "门禁基线。partition_manifest 用 partition_cover_check.py --write 生成一次，之后每次交付对拍；gate_case 相对技能根目录。",
+  "gates": {
+    "gate_case": "cases/cab2/gate_case_v8.json",
+    "partition_manifest": "out/ref_manifest_v3.json"
+  }
+}

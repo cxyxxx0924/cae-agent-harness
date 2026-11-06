@@ -1,0 +1,4 @@
+SRC      E:/work/AI_CAB/·ÖÇøÑµÁ·/igs/cab2.iges
+OUT      E:/work/AI_CAB/onekey/work/v2_cab2/curves.hm
+lines    828
+comps    1

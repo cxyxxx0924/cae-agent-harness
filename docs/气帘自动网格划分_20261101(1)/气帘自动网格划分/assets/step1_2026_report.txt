@@ -1,0 +1,28 @@
+bridge=339 half157=341
+RING seam0 surf=1 area=4627.3 edges=1
+RING seam1 surf=2 area=4627.3 edges=1
+RING seam2 surf=3 area=4570.5 edges=1
+RING seam3 surf=4 area=4195.5 edges=1
+RING seam4 surf=5 area=9847.7 edges=1
+seam_ids=1 2 3 4 5
+SL3=6 area=956064.3 edges=10
+SBLUE=7 area=1154049.5
+TRIM L3 hole=9 area=956944.3 body=9 area=956944.3
+SCAV=9 area=956944.3  SBELT=7 area=197662.2
+TRIM SEAM_seam0 hole=10 area=4627.3 body=9 area=952317.1
+TRIM SEAM_seam1 hole=11 area=4627.3 body=9 area=947689.8
+TRIM SEAM_seam2 hole=12 area=4543.3 body=9 area=943146.5
+TRIM SEAM_seam3 hole=13 area=4195.5 body=9 area=938951.0
+TRIM SEAM_seam4 hole=14 area=9847.7 body=9 area=929103.3
+seam_holes=10 11 12 13 14
+FINAL SCAV=9 area=929103.3  junk=8
+KEEP surfaces: 7(197662) 9(929103) 10(4627) 11(4627) 12(4543) 13(4195) 14(9848) 1(4627) 2(4627) 3(4570) 4(4195) 5(9848)
+MESH seam0 surf=10 sz=5.0 elems=191 quad=174 tria=17 r1=0/1 r2=0/1
+MESH seam1 surf=11 sz=5.0 elems=191 quad=168 tria=23 r1=0/1 r2=0/1
+MESH seam2 surf=12 sz=5.0 elems=208 quad=175 tria=33 r1=0/1 r2=0/1
+MESH seam3 surf=13 sz=5.0 elems=179 quad=155 tria=24 r1=0/1 r2=0/1
+MESH seam4 surf=14 sz=5.0 elems=318 quad=291 tria=27 r1=0/1 r2=0/1
+MESH cav surf=9 sz=5.0 elems=35604 quad=34166 tria=1438 r1=0/1 r2=0/1
+MESH belt surf=7 sz=5.0 elems=8169 quad=7909 tria=260 r1=0/1 r2=0/1
+equivalence2 0.05: r=0 nodes 44502 -> 44502
+EXPORT nodes=44499

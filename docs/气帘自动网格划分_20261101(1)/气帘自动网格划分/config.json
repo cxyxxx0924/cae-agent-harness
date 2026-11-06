@@ -1,0 +1,150 @@
+{
+  "skill": "curtain-airbag-auto-meshing",
+  "version": "2026.11.01.8",
+  "note": "通用气帘自动网格划分技能（分区→网格→校验全链路）。案例差异进 cases/<案例>/case.json，门限口径进 scripts/gate/auto_gate/gate_rules.json，未闭环项进 references/19，实测数字进 references/20 + assets/baselines.json，本文件只放环境事实。",
+  "hyperworks": {
+    "version": "2026.0.0.27",
+    "home": "D:\\Program Files\\Altair\\2026",
+    "hmbatch": "D:\\Program Files\\Altair\\2026\\hwdesktop\\hm\\bin\\win64\\hmbatch.exe",
+    "user_profile": "LsDyna Keyword971_R16.0",
+    "solvers_legacy_home": "E:\\BaiduNetdiskDownload\\Hyperworks2020\\2020\\hwsolvers\\scripts",
+    "note": "2026 不带 hwsolvers；求解器走 2020。两版本网格不等价，交付链锁 2026。"
+  },
+  "locked_version": "2026",
+  "workdir_convention": {
+    "env": "WORKDIR",
+    "default": ".",
+    "layout": "WORKDIR/input/ 放 CAD(.hm/.iges)，WORKDIR/out/ 出全部中间产物与最终 K",
+    "deck_env": "DECK（默认 out/airbag_step1_2026.k，各环节可覆盖）",
+    "rule": "路径必须全英文（中文路径 hmbatch -tcl 必挂，P6）"
+  },
+  "pipeline": {
+    "driver": "scripts/drivers/run_case.sh（首选，case.json 驱动）/ run_pipeline.sh（旧驱动，仅兼容）",
+    "stages": {
+      "stage0_import": "CAD → .hm（import_igs_2026.tcl / smoke_2026.tcl）",
+      "stage1_survey": "组件清单+spline面积（定 PID 依据，P28）+ 线点云 + 标准底图",
+      "stage2_partition": "四分区归类 + component 落地 + 回读校验（references/09）",
+      "stage3_mesh": "裁切拓扑三面网格（references/03）+ 拉带区域/建面网格（references/07）",
+      "stage4_assemble": "Y 分层写 K + 拉带捏合 + 充气口封口 + K 格式修复",
+      "gate": "拓扑 QA / 长边 / 端口 / 末端 + auto_gate 统一校验套件",
+      "render": "三面网格/左拉带连接/修复前后/四分区面板",
+      "drivers": "run_pipeline.sh（全链）+ cab3_auto/run_cab3.sh（无人值守）"
+    },
+    "gate_env": {
+      "GATE_ONLY": "1 = 跳过网格阶段，只跑门禁+auto_gate",
+      "GATE_CASE": "auto_gate 案例配置路径（cases/<案例>/gate_case.json）",
+      "RING_SPEC": "ring_spec.json 路径（缺则跳过 ⑦b 几何门禁）",
+      "LINES_PTS": "线点云路径（缺则跳过 ⑦b 几何门禁）",
+      "PARTITION_MANIFEST": "分区覆盖基线 manifest（partition_cover_check --write 生成）；不设则 ⑦d 跳过 —— 等于没有防丢块门禁",
+      "REQUIRE_PARTS": "由 case.json 的 parts 字段自动注入；声明必需部件，缺件组装阶段硬失败（P48）",
+      "ANCHORED_TETHERS": "1 = 跑 ⑥b 锚固三刀切（case.json assemble.anchored_tethers 控制）",
+      "TABS_POLYS": "拉带轮廓 tether_full.json（⑥b 必需）"
+    }
+  },
+  "cab3_auto": {
+    "driver": "scripts/drivers/cab3_auto/run_cab3.sh",
+    "scripts": [
+      "loop_analyze.py",
+      "build_loops3.py",
+      "gen_step1_v3.py",
+      "shape_gate_v3.py",
+      "assemble_v3.py",
+      "final_gate.py",
+      "tether_conn_check.py",
+      "render_final.py"
+    ],
+    "env": {
+      "WORKDIR": "运行目录（含 lines_pts_all.txt / *.hm / loops_v3.json）",
+      "REFDIR": "参考模型目录（需含 MAT.K + 03_Control_card.k；默认 ./ref）",
+      "MESH_START": "初始网格尺寸 mm，默认 5.0",
+      "MESH_MIN": "门禁不过时的下限 mm，默认 2.0",
+      "CMAX_LIMIT": "形状门禁 C 阈值 mm，默认 0.5",
+      "SKIP_HM": "1 = 跳过 hmbatch，复用已有网格（调试）"
+    },
+    "mesh_command": "*interactiveremeshsurf 1 $sz 2 2 2 1 1 + *setedgedensitylinkwithaspectratio -1",
+    "gate_exit_codes": {
+      "0": "ALL PASS 可交付",
+      "1": "shape gate FAIL",
+      "2": "结构门禁 FAIL",
+      "3": "拉带检查 FAIL"
+    },
+    "reference": "references/11_cab3_auto_pipeline.md"
+  },
+  "auto_gate": {
+    "dir": "scripts/gate/auto_gate",
+    "entry": "run_gate.py",
+    "cleaner": "clean_kfile.py",
+    "rules": "scripts/gate/auto_gate/gate_rules.json（可迭代，带 _changelog）",
+    "cases_dir": "cases/（案例配置，${WORKDIR} 占位）",
+    "checks": [
+      "拓扑",
+      "Y分层",
+      "环面积+节点路程",
+      "环几何匹配(逐CAD线+跨PID三级判定)",
+      "拉带连接(皮带腔界面豁免)"
+    ],
+    "exit_codes": {
+      "0": "PASS/WARN 可交付",
+      "1": "FAIL 阻断"
+    },
+    "reference": "references/12_auto_gate.md"
+  },
+  "delivery_gate": {
+    "script": "scripts/gate/qa_kfile_strict.py",
+    "must_pass_exit_code": 0,
+    "suite": "scripts/gate/auto_gate/run_gate.py（几何/连接/分层/面积，WARN 不阻断、FAIL 阻断）",
+    "gate_suite": [
+      {
+        "script": "scripts/gate/qa_kfile_strict.py",
+        "role": "严格 K 校验",
+        "exit": "0=通过"
+      },
+      {
+        "script": "scripts/gate/auto_gate/run_gate.py",
+        "role": "业务门禁（拓扑/分层/环面积/环几何/拉带连接）",
+        "exit": "0=PASS|WARN, 1=FAIL"
+      },
+      {
+        "script": "scripts/gate/mesh_quality_gate.py",
+        "role": "碰撞网格质量口径",
+        "exit": "0=PASS, 2=FAIL(不合格率>5%)"
+      },
+      {
+        "script": "scripts/gate/partition_cover_check.py",
+        "role": "分区覆盖/防整块丢（按 PID 比面积+组分质心+包围盒）",
+        "exit": "0=PASS, 1=WARN, 2=FAIL"
+      }
+    ]
+  },
+  "pids": {
+    "_note": "默认 PID 语义（来自 cab1/cab3 实证）；新案例必须以 survey_comps.tcl 面积实证重新判定（P28）",
+    "2": "单层布带 (belt) Y0",
+    "3": "气腔双层 (cavity) Y±0.5（界面收 Y0）",
+    "4": "缝面 (seam) Y0",
+    "5": "拉带 (tabs/tethers) Y-1"
+  },
+  "project_geometry_params": {
+    "_note": "以下为项目相关几何量，换项目必须按新模型标定（技能通用化的待训练参数点）",
+    "bridge_points": "build_step1_2026.tcl 内补桥点坐标（环缺口位置）",
+    "split_lines": "build_step1_2026.tcl 内拆线点（充气口领圈等）",
+    "edge_band_mm": 8.0,
+    "end_band_mm": 3.0,
+    "tab_regions": 9
+  },
+  "hard_rules": [
+    "P17 边界贴合靠同源拓扑，不靠投影缝合",
+    "P18 网格修整不准乱删（只删真退化/完全重复/无引用孤儿节点）",
+    "P20 交付前必须过 qa_kfile_strict.py",
+    "P21 拉带只并到单层布带(PID2)，不并到气腔/缝线（经布带穿过的 Y0 界面节点除外，见 gate_rules tether.belt_cavity_interface）",
+    "P1 K 文件 *ELEMENT_SHELL 必须写 eid（漏写=读取器卡死）",
+    "P48 缺件必须硬失败：组装阶段找不到声明的部件直接 SystemExit，不许只打 WARN",
+    "P60 改技能脚本必须 MD5 回归：cab2 v8 基线 d8e50902f4a41e8029ba87eb502f18d5"
+  ],
+  "entry_points": {
+    "接新案例": "references/00_RUNBOOK_接新气帘.md（端到端 runbook，先读这个）",
+    "动手前的坑": "references/04_pitfalls.md（P1–P60）",
+    "这一版对不对": "references/20_baselines.md + assets/baselines.json",
+    "还没解决的": "references/19_open_issues.md",
+    "一键跑": "scripts/drivers/run_case.sh --case cases/<案例>/case.json --work <工作目录>"
+  }
+}

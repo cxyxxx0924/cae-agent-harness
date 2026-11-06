@@ -1,0 +1,28 @@
+{
+  "_comment": "cab2 案例配置(blmesh 前置 washer 版)。几何在 X-Y 平面(Z=0), 厚度轴=Z —— 与 cab1(X-Z 平面, 厚度=Y) 不同, 故显式声明 thickness_axis=Z。用法: WORKDIR=E:/work/AI_CAB/onekey/work/cab2_skill python run_gate.py --case cases/cab2/gate_case.json",
+  "case": "cab2",
+  "k_file": "E:/work/AI_CAB/onekey/cab2_curtain_airbag_bl.k",
+  "cad_lines_2d": "${WORKDIR}/out/lines_pts_2d.txt",
+  "thickness_axis": "Z",
+  "pid_scheme": {
+    "belt": 2,
+    "cavity": 3,
+    "seam": 4,
+    "tether": 5
+  },
+  "cad_tag": {
+    "belt": "L1",
+    "cavity": "L2",
+    "seam": "L3"
+  },
+  "layers": {
+    "belt": 0.0,
+    "cavity": [
+      -0.5,
+      0.5
+    ],
+    "seam": 0.0,
+    "tether": -1.0
+  },
+  "mesh_nominal_mm": 5.0
+}

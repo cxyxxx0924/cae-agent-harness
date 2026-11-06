@@ -1,0 +1,75 @@
+{
+  "_doc": "回归基线（机器可读）。改脚本/换机器后跑同一案例，数字必须与这里对得上；对不上要么是回归，要么是新坑，要么要更新台账。文档版见 references/20_baselines.md",
+  "_updated": "2026-11-01",
+  "cases": {
+    "cab2": {
+      "status": "定版交付",
+      "deck": "cab2_curtain_airbag_v8.k",
+      "md5": "d8e50902f4a41e8029ba87eb502f18d5",
+      "plane": "xy",
+      "thickness_axis": "z",
+      "mesh_size": 5.0,
+      "nodes": 82102,
+      "elems": 83808,
+      "elem_types": {"quad": 81175, "tria": 2633},
+      "pids": {"2": 5315, "3": 74822, "4": 879, "5": 2792},
+      "areas_mm2": {"2": 129617.5, "3": 1905125.7, "4": 20358.4, "5": 64550.0},
+      "components": {"2": 1, "3": 1, "4": 4, "5": 9},
+      "tether_parts_expected": 9,
+      "anchor": {"width_mm": 5.0, "sigma": 0.03, "warp_max_deg": 32.97, "amin_p1_deg": 8.4},
+      "quality": {
+        "bad": 82, "bad_ratio": 0.000978, "bad_by_pid": {"2": 8, "3": 8, "4": 0, "5": 66},
+        "tria_ratio": 0.0314, "amin_p1_deg": 65.23, "amin_p50_deg": 87.41,
+        "aspect_p95": 1.307, "jac_p5": 0.979, "warp_p95_deg": 0.0,
+        "size_gradient_p99": 1.16, "size_gradient_viol": 0
+      },
+      "connection": {"tether_belt": 77, "tether_cav": 0, "tether_seam": 0},
+      "gates": {
+        "qa_kfile_strict": {"fatal": 0, "warn": 0, "verdict": "PASS"},
+        "auto_gate": {"pass": 3, "warn": 2, "fail": 0},
+        "mesh_quality": "PASS",
+        "partition_cover": "PASS"
+      },
+      "assemble": {
+        "tab_tol": 0.35, "snap_inside_tol": 3.0, "weak_anchor_min": 1,
+        "step1": "cab2_step1_bl.txt",
+        "step2": "tabs_triple_export.txt",
+        "step2b": "cab2_step2b_side2.txt"
+      },
+      "manifest": "out/ref_manifest_v3.json",
+      "_history": {
+        "v3": {"elems": 83709, "tether_parts": 9, "pid5_area": 64683.5, "warp_max_deg": 165.7, "bad": 85, "tether_belt": 94},
+        "v4": {"elems": 83709, "tether_parts": 8, "pid5_area": 62213.4, "warp_max_deg": 32.97, "bad": 74, "tether_belt": 58,
+               "note": "整块丢侧拉带；partition_cover_check 会 FAIL"},
+        "v8": {"note": "恢复侧条 99 单元，不合格 74->82 是侧条自带 6 个 >15 度过渡单元"}
+      }
+    },
+    "cab1": {
+      "status": "全链验证",
+      "plane": "xz",
+      "pids": {"2": 8169, "3": 71208, "4": 1087, "5": 3279},
+      "note": "cab1 另有 PID6/7/8，PID 语义与 cab2 不同，不要跨案例套用（P28）",
+      "orphan_nodes_cleaned": 33790
+    },
+    "cab3": {
+      "status": "无人值守链验证",
+      "nodes": 13193,
+      "elems": 13770,
+      "driver": "scripts/drivers/cab3_auto/run_cab3.sh",
+      "note": "规模约 cab2 的 1/6，适合快速验证门禁改动是否误伤"
+    }
+  },
+  "thresholds": {
+    "bad_ratio_fail": 0.05,
+    "min_angle_quad": 30.0,
+    "min_angle_tria": 20.0,
+    "aspect_max": 3.0,
+    "jacobian_min": 0.6,
+    "warp_max": 5.0,
+    "tria_ratio_max": 0.08,
+    "size_gradient_max": 2.0,
+    "partition_area_tol": 0.03,
+    "partition_cent_tol_mm": 12.0,
+    "partition_comp_tol": 0.10
+  }
+}

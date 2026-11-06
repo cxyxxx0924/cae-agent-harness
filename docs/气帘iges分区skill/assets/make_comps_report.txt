@@ -1,0 +1,21 @@
+=== before ===
+comps: 1
+lines total: 828
+createentity comps name=BELT -> r=0 e=1
+createentity comps name=CAVITY -> r=0 e=1
+createentity comps name=SEAM -> r=0 e=1
+createentity comps name=TETHER -> r=0 e=1
+comps now: 1 2 3 4 5
+=== moving ===
+BELT   moved=119   (expect 119)
+CAVITY moved=78   (expect 78)
+SEAM   moved=59   (expect 59)
+TETHER moved=572   (expect 572)
+=== verify (id-set equality) ===
+OK   BELT: 119 lines, id-set identical to json
+OK   CAVITY: 78 lines, id-set identical to json
+OK   SEAM: 59 lines, id-set identical to json
+OK   TETHER: 572 lines, id-set identical to json
+lines0 leftover: 0 (expect 0)
+ALL_OK=1
+writefile partitioned.hm -> r=0 e=1 exists=1

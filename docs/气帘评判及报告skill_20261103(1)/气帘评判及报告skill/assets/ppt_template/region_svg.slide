@@ -1,0 +1,34 @@
+<Slide style={{ padding: 0, backgroundColor: '#FFFFFF', fontFamily: '"Microsoft YaHei", "PingFang SC", sans-serif' }}>
+  <Box style={{ height: 72, backgroundColor: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 48, paddingRight: 48 }}>
+    <Text style={{ color: '#FFFFFF', fontSize: 30, fontWeight: 'bold' }}>评估区域示意图</Text>
+    <Text style={{ color: '#FFFFFF', fontSize: 16, opacity: 0.85 }}>0X · REGION</Text>
+  </Box>
+  <Box style={{ flex: 1, padding: 40, flexDirection: 'column', gap: 12, justifyContent: 'center' }}>
+    <Text style={{ fontSize: 17, color: '#4A5568', lineHeight: 1.5 }}>评估区域为圆角四边形，四角圆心 = 假人头部重心（CoG）坐标。下图按参考报告 5 个头部重心点在车辆坐标系（X 纵向 / Z 高度）中的位置绘制，浅蓝带示意气帘覆盖的头部高度带。</Text>
+    <Box style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <svg width={840} height={360} viewBox='0 0 900 380'>
+        <rect x='100' y='60' width='740' height='230' fill='#E8EFF8' rx='12' />
+        <line x1='100' y1='322' x2='840' y2='322' stroke='#94A3B8' strokeWidth='1' />
+        <line x1='100' y1='60' x2='100' y2='322' stroke='#94A3B8' strokeWidth='1' />
+        <text x='470' y='352' fontSize='15' fill='#64748B' textAnchor='middle'>X 纵向 (mm) — 前排 → 后排</text>
+        <text x='40' y='195' fontSize='15' fill='#64748B' textAnchor='middle' transform='rotate(-90 40 195)'>Z 高度 (mm)</text>
+        <circle cx='164' cy='83' r='7' fill='#D9534F' />
+        <text x='180' y='80' fontSize='14' fill='#1A2230'>1ROW@60 (160.9mm)</text>
+        <circle cx='164' cy='94' r='7' fill='#D9534F' />
+        <text x='180' y='112' fontSize='14' fill='#1A2230'>1ROW@32 (159.4mm)</text>
+        <circle cx='367' cy='249' r='7' fill='#D9534F' />
+        <text x='383' y='254' fontSize='14' fill='#1A2230'>Q3@60 (83.4mm)</text>
+        <circle cx='574' cy='221' r='7' fill='#D9534F' />
+        <text x='590' y='226' fontSize='14' fill='#1A2230'>Q6@60 (101.8mm)</text>
+        <circle cx='749' cy='133' r='7' fill='#D9534F' />
+        <text x='765' y='138' fontSize='14' fill='#1A2230'>Q10@60 (128.2mm)</text>
+        <text x='470' y='45' fontSize='14' fill='#1E4FA8' textAnchor='middle'>气帘覆盖头部高度带（示意）</text>
+      </svg>
+    </Box>
+    <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>说明：圆点 = 头部重心（CoG）；括号内 = 该点处参考充气厚度（来自参考报告静态充气分析）。本图为示意图，非仿真截图。</Text>
+  </Box>
+  <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 48, paddingRight: 48, borderTop: '1px solid #E5E7EB' }}>
+    <Text style={{ fontSize: 13, color: '#8B97A8' }}>侧面气帘展开性能评估 · C-NCAP 附录G G.14.3</Text>
+    <Text style={{ fontSize: 13, color: '#8B97A8' }}>0X / 11</Text>
+  </Box>
+</Slide>

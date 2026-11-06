@@ -1,0 +1,16 @@
+# 金标准 ① · newcab（NEW_CAB 8P 图）
+
+## 出处
+- 原始 IGES：`E:/work/AI_CAB/气帘CAD数据/NEW_CAB_igs/Drawing0904ZHEDIETU.iges`
+  （= `E:/work/AI_CAB/onekey/work/input_newcab/newcab.iges`，同文件；本目录存为 `source.iges`）
+- 金标准来源：2026-10-21 人工链路 S3–S4（种子 v8 → delta 累积到 v14）产出
+  `E:/work/AI_CAB/onekey/work/newcab/out/classify_v14.json`（本目录存为 `classify_v14.json`）。
+  这是**最早、也是全链路唯一真门禁（t08 VERIFY_FAIL=0）验收过的认可结果**。
+
+## 内容
+- `classify_v14.json` — 金标签：828 线 = BELT 34 / CAVITY 89 / SEAM 43 / TETHER 555 + lines0 107
+- `features.json` — 同源特征（featurize 输出，828 线，19 特征）
+- `source.iges` — 原始图纸（端到端复跑用：`WORKDIR=<新工作区> IGES=golden/newcab/source.iges bash scripts/run_auto.sh`）
+
+## 自动复现验收
+联合先验对 newcab 逐线 **721/721，MISMATCH=0**（认可结果零回退）。
