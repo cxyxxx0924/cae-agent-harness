@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>网格生成完成 · CAE 气帘工作流</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --text: #171b1a;
+      --muted: #858d8a;
+      --line: #e5e8e7;
+      --panel: #fff;
+      --side: #f8f9fa;
+      --canvas: #fdfdfd;
+      --blue: #5c8ef5;
+      --blue-soft: #eef4ff;
+      --cyan: #169d9a;
+      --green: #22835f;
+      --orange: #df9b43;
+      --red: #cf5856;
+      --radius: 6px;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; min-height: 620px; color: var(--text); background: #fff; font-size: 13px; }
+    button, input, textarea { font: inherit; }
+    button { color: inherit; }
+    .window { display: grid; grid-template-rows: 28px minmax(0,1fr); height: 100%; }
+    .titlebar { position: relative; display:flex; align-items:center; justify-content:center; border-bottom:1px solid #eceeed; background:#f4f5f5; color:#555c59; font-size:12px; font-weight:600; }
+    .traffic { position:absolute; left:9px; display:flex; gap:6px; }
+    .traffic i { width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.1); }
+    .traffic i:nth-child(1){background:#ff6058}.traffic i:nth-child(2){background:#ffbd2e}.traffic i:nth-child(3){background:#28c840}
+    .app { min-height:0; display:grid; grid-template-columns:264px minmax(470px,1fr) minmax(535px, .85fr); }
+
+    /* App shell mirrors the existing DSH three-column workspace. */
+    .left { min-width:0; display:flex; flex-direction:column; padding:13px 12px 10px; background:var(--side); border-right:1px solid var(--line); }
+    .brand-row { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 4px; }
+    .brand { display:flex; align-items:center; gap:8px; font-size:16px; font-weight:730; letter-spacing:-.1px; }
+    .brand-mark { width:23px;height:23px;display:grid;place-items:center;color:#171b1a; }
+    .brand-tag { margin-left:-3px;padding:2px 4px;border-radius:2px;color:#fff;background:#111;font-size:8px;font-weight:750;letter-spacing:.3px; }
+    .collapse { width:27px;height:27px;display:grid;place-items:center;border:0;border-radius:5px;background:transparent;color:#7d8582; }
+    .collapse:hover,.top-icon:hover { background:#eef0ef; }
+    .new-session { width:100%;height:38px;margin:13px 0 10px;border:1px solid #dedfdf;border-radius:11px;background:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px; }
+    .new-session:hover { background:#fdfefe;border-color:#c6cecb; }
+    .automation { height:37px;display:flex;align-items:center;gap:9px;padding:0 9px;border-radius:6px;color:#414845;font-size:13px; }
+    .workspace-heading { margin:17px 4px 7px;display:flex;align-items:center;justify-content:space-between;color:#89918e;font-size:12px; }
+    .workspace-tools { display:flex;gap:4px; }
+    .workspace-tools button { width:25px;height:25px;display:grid;place-items:center;border:0;border-radius:5px;color:#7d8582;background:transparent; }
+    .workspace-tools button:hover { background:#edf0ef; }
+    .workspace-root { display:flex;align-items:center;gap:7px;height:30px;padding:0 7px;color:#4d5653;font-size:12px; }
+    .session-item { height:33px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:7px;background:#e9ebed;color:#242927;font-size:12px; }
+    .session-item.live { background:#e9f0ff;color:#294c98; }
+    .session-dot { width:6px;height:6px;border-radius:50%;background:#8f9a96; }
+    .session-item.live .session-dot { background:#5885e9; }
+    .left-spacer { flex:1; }
+    .settings-link { height:34px;display:flex;align-items:center;gap:8px;padding:0 7px;color:#555e5b;font-size:12px; }
+
+    .center { min-width:0;position:relative;display:flex;flex-direction:column;background:#fff;border-right:1px solid var(--line); }
+    .center-top { height:48px;flex:0 0 48px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;color:#4c5451; }
+    .center-session { display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;font-weight:570; }
+    .session-status { width:8px;height:8px;border:1.5px solid #7d8582;border-radius:50%; }
+    .session-status.live { border-color:#2a9c77;background:#2a9c77;box-shadow:0 0 0 3px #e5f5ed; }
+    .center-toolbar { display:flex;gap:4px; }
+    .top-icon { width:27px;height:27px;display:grid;place-items:center;border:0;border-radius:5px;color:#737c78;background:transparent; }
+    .home-view { flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 36px; }
+    .home-title { display:flex;align-items:center;gap:12px;margin-bottom:29px;font-size:25px;font-weight:680; }
+    .home-whale { width:34px;height:34px;color:#121514; }
+    .preview-tag { padding:3px 8px;border-radius:10px;color:#4966a2;background:#edf3ff;font-size:10px;font-weight:580; }
+    .workspace-select { width:min(100%, 714px);margin:0 0 10px 16px;color:#545d5a;font-size:11px; }
+    .workspace-select span { margin-left:5px;color:#9aa29f; }
+    .composer { width:min(100%, 714px);min-height:116px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid #e1e4e3;border-radius:22px;background:#fff;box-shadow:0 5px 21px rgba(20,30,27,.055); }
+    .composer textarea { width:100%;height:64px;resize:none;border:0;outline:0;padding:17px 17px 4px;border-radius:22px;background:transparent;color:#303835;font-size:13px; }
+    .composer textarea::placeholder { color:#a2aaa7; }
+    .composer-bottom { min-height:45px;display:flex;align-items:center;justify-content:space-between;padding:0 9px 8px; }
+    .composer-tools { display:flex;align-items:center;gap:8px; }
+    .round-icon { width:29px;height:29px;display:grid;place-items:center;border:0;border-radius:50%;color:#707976;background:#f5f6f6; }
+    .mode-pill { display:flex;align-items:center;gap:5px;padding:5px 8px;border:0;border-radius:5px;color:#656e6a;background:#fff;font-size:11px; }
+    .model-controls { display:flex;align-items:center;gap:5px;color:#7d8582;font-size:11px; }
+    .model-pill { border:0;background:transparent;color:#59615e;font-size:11px; }
+    .send { width:31px;height:31px;display:grid;place-items:center;border:0;border-radius:50%;color:#fff;background:#91b3fb; }
+    .welcome-note { margin-top:13px;color:#a1a8a5;font-size:10px; }
+    .chat-view { display:none;flex:1;min-height:0;flex-direction:column;padding:0 28px 18px; }
+    .chat-view.active { display:flex; }
+    .chat-scroll { flex:1;min-height:0;overflow:auto;padding:20px 0; }
+    .chat-message { max-width:680px;margin:0 auto 22px;line-height:1.65; }
+    .chat-message.user { display:flex;justify-content:flex-end; }
+    .chat-message.user .bubble { max-width:78%;padding:11px 14px;border-radius:14px 14px 4px 14px;background:#f2f4f4;color:#313a36; }
+    .assistant-line { display:flex;align-items:flex-start;gap:11px; }
+    .assistant-mark { width:27px;height:27px;flex:0 0 27px;display:grid;place-items:center;border:1px solid #eceeed;border-radius:50%;color:#333b37;background:#fff; }
+    .assistant-content { padding-top:3px;color:#343c39;font-size:13px; }
+    .assistant-content p { margin:0 0 10px; }
+    .assistant-content .muted { color:#87918d; }
+    .assistant-attachment { display:inline-flex;align-items:center;gap:7px;margin-top:4px;padding:7px 9px;border:1px solid #e7ebe9;border-radius:6px;color:#54615c;background:#fff;font-size:11px; }
+    .chat-composer-wrap { display:none; }
+    .chat-view.active .chat-composer-wrap { display:block; }
+    .chat-view.active .chat-composer-wrap .composer { min-height:94px; }
+    .chat-view.active .chat-composer-wrap .composer textarea { height:49px; }
+    .chat-view.active .chat-composer-wrap .workspace-select { display:none; }
+
+    .right { min-width:0;display:flex;flex-direction:column;background:#fff; }
+    .right-header { height:46px;flex:0 0 46px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid transparent;color:#454e4b; }
+    .right-title { display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600; }
+    .right-tools { display:flex;gap:5px; }
+    .right-tools .top-icon { width:27px;height:27px; }
+    .start-panel { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px 34px 40px; }
+    .start-compass { width:48px;height:48px;margin-bottom:28px;color:#e6e8e7; }
+    .start-cards { width:min(100%, 420px);display:grid;gap:13px; }
+    .start-card { width:100%;min-height:68px;display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 15px;border:1px solid #e1e4e3;border-radius:18px;background:#fff;text-align:left;transition:border-color .18s ease,background .18s ease,transform .18s ease; }
+    .start-card:hover { border-color:#c7d2ce;background:#fdfefe;transform:translateY(-1px); }
+    .start-card.workflow:hover { border-color:#b5c8ed;background:#fdfefe; }
+    .start-card-icon { width:21px;height:21px;display:grid;place-items:center;color:#eea83f; }
+    .start-card.workflow .start-card-icon { color:#5a8af0; }
+    .start-card-title { display:flex;align-items:center;gap:6px;color:#333b38;font-size:13px;font-weight:560; }
+    .start-card-desc { margin-top:4px;color:#939c98;font-size:10px; }
+    .shortcut { color:#89928f;font-size:10px;white-space:nowrap; }
+    .start-new-badge { padding:2px 5px;border-radius:4px;color:#4b6eaa;background:#edf3ff;font-size:9px;font-weight:650; }
+
+    .workflow-view { display:none;flex:1;min-height:0;flex-direction:column; }
+    .workflow-view.active { display:flex; }
+    .workflow-mode { display:flex;align-items:center;gap:6px;color:#77817d;font-size:9px;font-weight:500; }
+    .mode-dot { width:6px;height:6px;border-radius:50%;background:#d8a25c; }
+    .wf-steps { display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;padding:9px 13px 12px;border-bottom:1px solid #eff1f0; }
+    .wf-step { min-width:0;min-height:40px;position:relative;display:flex;align-items:center;gap:7px;padding:6px 7px;border:1px solid #e8ebea;border-radius:5px;background:#fff;color:#909996;text-align:left; }
+    .wf-step:not(:last-child):after { content:"";position:absolute;width:6px;height:1px;right:-7px;top:50%;background:#dce2df; }
+    .wf-step.active { border-color:#b8c9ed;background:#f7f9ff;color:#375eae; }
+    .wf-step.done { border-color:#d1e3da;background:#f9fcfa;color:#387856; }
+    .wf-step.blocked { opacity:.62; }
+    .wf-num { width:19px;height:19px;flex:0 0 19px;display:grid;place-items:center;border:1px solid #dfe5e2;border-radius:50%;font-size:9px;font-weight:650; }
+    .wf-step.active .wf-num { border-color:#618ae2;color:#fff;background:#618ae2; }
+    .wf-step.done .wf-num { border-color:#93c2a6;color:#fff;background:#72a985; }
+    .wf-label { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:570; }
+    .wf-body { flex:1;min-height:0;display:grid;grid-template-rows:minmax(250px,1fr) minmax(174px, 25%); }
+    .deliverable-area { min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 158px;gap:10px;padding:11px 12px 10px; }
+    .preview-column { min-width:0;min-height:0;display:flex;flex-direction:column; }
+    .preview-head { height:29px;flex:0 0 29px;display:flex;align-items:center;justify-content:space-between;padding:0 3px 6px;color:#5f6965;font-size:10px;font-weight:620; }
+    .preview-caption { display:flex;align-items:center;gap:6px;color:#9aa39f;font-size:9px;font-weight:450; }
+    .live-indicator { width:6px;height:6px;border-radius:50%;background:#64aa7d; }
+    .viewport { flex:1;min-height:0;position:relative;overflow:hidden;border:1px solid #e3e8e5;border-radius:4px;background:#f7f9f8; }
+    .viewport:before { content:"";position:absolute;inset:22px 0 0;opacity:.45;background-image:linear-gradient(rgba(104,130,120,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(104,130,120,.08) 1px,transparent 1px);background-size:24px 24px; }
+    .viewport-toolbar { position:absolute;z-index:1;top:0;left:0;right:0;height:22px;display:flex;align-items:center;justify-content:space-between;padding:0 7px;border-bottom:1px solid #e8edeb;background:#fff;color:#919b97;font-size:8px; }
+    .viewport-art { position:absolute;width:96%;height:calc(100% - 26px);left:2%;top:23px; }
+    .viewport-foot { position:absolute;left:8px;bottom:6px;color:#98a29f;font:8px ui-monospace,SFMono-Regular,Menlo,monospace; }
+    .viewport-axis { position:absolute;right:9px;bottom:8px;width:26px;height:26px;border-left:1px solid #f1a064;border-bottom:1px solid #6fa78a; }
+    .viewport-axis:before { content:"X";position:absolute;right:-2px;bottom:-12px;color:#d68c54;font-size:8px; }
+    .viewport-axis:after { content:"Z";position:absolute;left:-9px;top:-5px;color:#5d9b76;font-size:8px; }
+    .zone-outline { fill:#f1f4f3;stroke:#667a72;stroke-width:1.6; }
+    .zone-belt { fill:none;stroke:#29a67e;stroke-width:2.2; }
+    .zone-cavity { fill:rgba(72,171,137,.17);stroke:#3a9c7b;stroke-width:1.4; }
+    .zone-seam { fill:none;stroke:#68a1b9;stroke-width:1.6;stroke-dasharray:4 3; }
+    .zone-tether { fill:#f7ca8b;stroke:#ce8a38;stroke-width:.8; }
+    .mesh-line { fill:none;stroke:#359777;stroke-width:.65;opacity:.69; }
+    .mesh-point { fill:#fff;stroke:#238a6c;stroke-width:.8; }
+    .body-line { fill:none;stroke:#96a49f;stroke-width:4;stroke-linecap:round; }
+    .airbag { fill:rgba(24,151,115,.16);stroke:#168368;stroke-width:1.7; }
+    .rope { fill:none;stroke:#d59340;stroke-width:1.4;stroke-dasharray:4 3; }
+    .result-line { fill:none;stroke:#19a88b;stroke-width:2; }
+    .timeline { stroke:#aebbb5;stroke-width:1; }
+    .timeline-playhead { fill:#168875; }
+    .scan { display:none;position:absolute;z-index:2;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,#43b7a3,transparent);box-shadow:0 0 12px #64cbb8; }
+    .viewport.running .scan { display:block;animation:scan 2.4s ease-in-out infinite; }
+    .viewport.running[data-running="upload"] .zone-outline { stroke-dasharray:9 4;animation:trace 1.7s linear infinite; }
+    .viewport.running[data-running="partition"] .zone-cavity { animation:classify .9s ease-in-out infinite alternate; }
+    .viewport.running[data-running="mesh"] .mesh-line { animation:mesh-in 1.3s ease-out infinite alternate; }
+    .viewport.running[data-running="solve"] .deployed { transform-box:fill-box;transform-origin:50% 0;animation:deploy 2.1s ease-in-out infinite alternate; }
+    .viewport.running[data-running="post"] .result-line { animation:result-flash 1.1s ease-in-out infinite alternate; }
+    .viewport.running[data-running="report"] .report-page { animation:page-in 1s ease-in-out infinite alternate; }
+    .preview-empty { position:absolute;inset:22px 0 0;display:flex;align-items:center;justify-content:center;text-align:center;color:#7f8c87; }
+    .upload-cta { display:inline-flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #dce5e1;border-radius:5px;color:#53625d;background:#fff;font-size:10px;font-weight:600; }
+    .upload-cta:hover { border-color:#9fc2b3;color:#196f60; }
+    .filelist { min-width:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid #e5eae7;border-radius:4px;background:#fff; }
+    .filelist-head { height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:space-between;padding:0 8px;border-bottom:1px solid #edf1ef;color:#626d69;font-size:9px;font-weight:650; }
+    .filelist-scroll { min-height:0;overflow:auto; }
+    .file-empty { padding:14px 9px;color:#9aa39f;font-size:9px;line-height:1.55; }
+    .file-row { width:100%;min-width:0;display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:6px;padding:7px 6px;border:0;border-bottom:1px solid #f0f2f1;background:#fff;text-align:left; }
+    .file-row:hover { background:#f7f9f8; }
+    .file-ext { width:23px;height:27px;display:grid;place-items:center;border:1px solid #dce5e1;border-radius:3px;color:#527d6b;background:#f8fbf9;font-size:7px;font-weight:750; }
+    .file-name { display:block;overflow:hidden;color:#54615b;text-overflow:ellipsis;white-space:nowrap;font-size:8px;font-weight:620; }
+    .file-meta { display:block;margin-top:3px;color:#a0a9a5;font-size:8px; }
+    .workspace-actions { padding:7px 8px;border-top:1px solid #edf1ef;color:#87928e;font-size:9px; }
+    .workspace-actions button { border:0;padding:0;color:#5474b5;background:transparent;font-size:9px; }
+
+    .step-meta { min-height:31px;display:flex;align-items:center;justify-content:space-between;gap:9px;padding:0 14px;border-top:1px solid #edf0ef;color:#66716d;font-size:9px; }
+    .step-meta strong { color:#394641;font-weight:650; }
+    .meta-state { display:flex;align-items:center;gap:5px;color:#8a9490;white-space:nowrap; }
+    .run-bar { display:none;align-items:center;gap:8px;padding:0 14px 8px;color:#72807a;font-size:9px; }
+    .run-bar.active { display:flex; }
+    .run-track { height:3px;flex:1;overflow:hidden;border-radius:2px;background:#e9eeeb; }
+    .run-fill { width:0;height:100%;background:#35a78b;transition:width .12s linear; }
+    .stage-actions { min-height:39px;display:flex;align-items:center;justify-content:flex-end;gap:7px;padding:0 12px 8px; }
+    .action-btn { min-height:29px;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 10px;border:1px solid #e1e6e3;border-radius:5px;background:#fff;color:#59635f;font-size:9px;font-weight:620; }
+    .action-btn:hover:not(:disabled) { border-color:#b9c9c2;background:#fafcfb; }
+    .action-btn.primary { border-color:#5c86df;color:#fff;background:#668fe6; }
+    .action-btn.primary:hover:not(:disabled) { border-color:#4776d6;background:#547fdb; }
+    .action-btn:disabled { opacity:.5;cursor:not-allowed; }
+    .workflow-controls { display:flex;flex-direction:column;min-height:0;border-top:1px solid #e8ecea;background:#fff; }
+    .run-title { height:31px;flex:0 0 31px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;color:#59645f;font-size:9px;font-weight:650; }
+    .run-title small { color:#9aa39f;font-size:8px;font-weight:450; }
+    .trace-list { flex:1;min-height:0;overflow:auto;padding:0 14px 5px; }
+    .trace-item { position:relative;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:7px;min-height:35px;padding:2px 0 6px; }
+    .trace-item:not(:last-child):before { content:"";position:absolute;width:1px;top:11px;bottom:-2px;left:5px;background:#e0e7e3; }
+    .trace-dot { position:relative;z-index:1;width:11px;height:11px;margin-top:1px;border:1px solid #cad6d0;border-radius:50%;background:#fff; }
+    .trace-item.success .trace-dot { border-color:#6cae85;background:#74b18b;box-shadow:inset 0 0 0 2px #fff; }
+    .trace-item.active .trace-dot { border-color:#5d8ee5;background:#eaf0ff;animation:trace-pulse 1.1s infinite; }
+    .trace-copy { min-width:0;color:#606b66;font-size:9px;line-height:1.35; }
+    .trace-copy strong { color:#4c5752;font-weight:630; }
+    .trace-copy small { display:block;margin-top:2px;color:#9aa39f;font-size:8px; }
+    .trace-time { padding-top:1px;color:#a4ada9;font-size:8px;white-space:nowrap; }
+    .hidden { display:none !important; }
+    .toast { position:fixed;z-index:5;left:50%;bottom:20px;transform:translate(-50%,10px);padding:9px 12px;border:1px solid #d8e2dd;border-radius:6px;background:#fff;color:#4f6059;box-shadow:0 8px 28px rgba(20,40,32,.12);font-size:10px;opacity:0;pointer-events:none;transition:.2s; }
+    .toast.show { opacity:1;transform:translate(-50%,0); }
+    .modal-bg { position:fixed;z-index:9;inset:0;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(20,30,27,.24); }
+    .modal-bg.show { display:flex; }
+    .modal { width:min(400px,100%);border:1px solid var(--line);border-radius:7px;background:#fff;box-shadow:0 16px 50px rgba(20,35,30,.2); }
+    .modal-head { display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line);font-size:12px;font-weight:650; }
+    .modal-body { padding:13px 14px; }
+    .modal-body p { margin:0 0 8px;color:#75817b;font-size:10px; }
+    .modal-body textarea { width:100%;min-height:78px;resize:vertical;padding:8px;border:1px solid #dfe6e2;border-radius:5px;outline:none;font-size:10px; }
+    .modal-footer { display:flex;justify-content:flex-end;gap:7px;padding:10px 14px;border-top:1px solid var(--line); }
+
+    @keyframes scan { 0%{top:28px;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{top:calc(100% - 8px);opacity:0} }
+    @keyframes trace { to { stroke-dashoffset:-52; } }
+    @keyframes classify { from{fill:rgba(72,171,137,.04)} to{fill:rgba(72,171,137,.32)} }
+    @keyframes mesh-in { from{opacity:.08} to{opacity:.85} }
+    @keyframes deploy { from{transform:scaleY(.82) translateY(0)} to{transform:scaleY(1.05) translateY(4px)} }
+    @keyframes result-flash { from{opacity:.25} to{opacity:1} }
+    @keyframes page-in { from{transform:translateY(5px) rotate(-1deg)} to{transform:translateY(-3px) rotate(1deg)} }
+    @keyframes trace-pulse { 50%{box-shadow:0 0 0 3px #e8efff} }
+
+    @media (max-width: 1240px) {
+      .app { grid-template-columns:220px minmax(390px,1fr) minmax(500px,.9fr); }
+      .left { padding-left:10px;padding-right:10px; }
+      .deliverable-area { grid-template-columns:minmax(0,1fr) 138px;gap:7px;padding-left:9px;padding-right:9px; }
+      .wf-steps { padding-left:8px;padding-right:8px;gap:4px; }
+      .wf-step { padding:5px 4px;gap:4px; }
+      .wf-label { font-size:8px; }
+    }
+    @media (max-width: 900px) {
+      body { min-height:700px; }
+      .app { grid-template-columns:60px minmax(310px,1fr) minmax(390px,1.1fr); }
+      .left { align-items:center;padding:10px 6px; }
+      .brand-row { justify-content:center;padding:0; }
+      .brand-word,.brand-tag,.collapse,.new-session span,.automation span,.workspace-heading,.workspace-root span,.session-item span:not(.session-dot),.settings-link span { display:none; }
+      .new-session { width:38px;border-radius:50%; }
+      .automation,.settings-link { justify-content:center;width:38px;padding:0; }
+      .workspace-tools { display:none; }
+      .session-item { width:38px;justify-content:center;padding:0;background:#e8eaeb; }
+      .deliverable-area { grid-template-columns:minmax(0,1fr) 116px; }
+      .wf-label { display:none; }
+      .wf-step { justify-content:center; }
+    }
+    @media (max-width: 650px) {
+      body { min-height:600px; }
+      .app { grid-template-columns:48px minmax(0,1fr); }
+      .right { display:none; }
+      .left { padding:8px 4px; }
+      .center { border-right:0; }
+      .home-view { padding:20px 16px; }
+      .home-title { font-size:20px; }
+      .chat-view { padding:0 15px 14px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *,*:before,*:after { animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important; }
+    }
+
+    body { display:flex;flex-direction:column; }
+    .window { height:auto;min-height:0;flex:1; }
+    .app { grid-template-rows:minmax(0,1fr); }
+    .center,.right,.filelist { min-height:0; }
+    .filelist-scroll { flex:1; }
+    .snapshot-nav { min-height:52px;display:flex;align-items:center;gap:12px;padding:9px 18px;border-bottom:1px solid #dfe5e2;background:#f8faf9; }
+    .snapshot-nav a { flex:0 0 auto;color:#526a5f;text-decoration:none;font-size:11px;padding:6px 9px;border:1px solid #e0e7e3;border-radius:6px;background:#fff; }
+    .snapshot-heading { flex:1;min-width:0;display:flex;align-items:center;gap:9px;flex-wrap:wrap; }
+    .snapshot-heading strong { color:#283c31;font-size:13px;font-weight:600; }
+    .snapshot-heading span { font-size:10px;color:#8a9690; }
+    .snapshot-badge { padding:3px 7px;border-radius:4px;background:#edf4ef;color:#397659 !important; }
+    .snapshot-result { margin:13px 0 10px;padding:12px 13px;border:1px solid #e2e9e5;border-radius:8px;background:#fbfcfb; }
+    .snapshot-result-title { color:#3c7055;font-size:11px;font-weight:600;margin-bottom:9px; }
+    .snapshot-result dl { margin:0;display:grid;grid-template-columns:70px minmax(0,1fr);gap:7px 10px;font-size:11px; }
+    .snapshot-result dt { color:#87938c; }
+    .snapshot-result dd { margin:0;color:#4d5c53;overflow-wrap:anywhere; }
+    .snapshot-result-note { margin-top:10px;font-size:10px;color:#96a19b; }
+    .wf-step.done.active { box-shadow:inset 0 0 0 1px #6ea384; }
+    .snapshot-caption { margin:9px 0 0;color:#a0a9a4;font-size:10px; }
+    @media(max-width:1240px) and (min-width:901px) { .app { grid-template-columns:185px minmax(330px,.8fr) minmax(490px,1.2fr); } .chat-view { padding-left:18px;padding-right:18px; } }
+    @media(max-width:760px) {
+      body { height:auto;min-height:100vh; }
+      .snapshot-nav { flex-wrap:wrap;gap:6px;padding:8px; }
+      .snapshot-heading { min-width:calc(100% - 85px); }
+      .snapshot-heading span:not(.snapshot-badge) { display:none; }
+      .window { flex:none;min-height:0; }
+      .app { display:flex;flex-direction:column; }
+      .left { display:none; }
+      .center { flex:none;height:410px;min-height:410px;border-right:0;border-bottom:1px solid #e5e8e7; }
+      .chat-view { padding:0 16px 12px; }
+      .chat-scroll { padding:14px 0; }
+      .chat-message { margin-bottom:15px; }
+      .right { display:flex;flex:none;height:740px;min-height:740px; }
+      .wf-label { display:block;font-size:9px; }
+      .wf-step { gap:4px;padding:5px 3px; }
+      .wf-num { width:16px;height:16px;flex-basis:16px; }
+      .deliverable-area { grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(290px,1fr) 138px; }
+      .filelist { display:flex;flex-direction:column;min-height:0; }
+      .filelist-scroll { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));overflow:auto; }
+      .wf-body { grid-template-rows:minmax(475px,1fr) 158px; }
+      .stage-actions { flex-wrap:wrap; }
+      #stageDescription { display:none; }
+      .composer-tools .mode-pill { display:none; }
+      .snapshot-nav a { font-size:10px; }
+    }
+
+  </style>
+</head>
+<body>
+  <nav class="snapshot-nav" aria-label="阶段预览导航"><a href="index.html">全部页面</a><div class="snapshot-heading"><strong>03 / 07 · 网格生成完成</strong><span class="snapshot-badge">待确认网格</span><span>交互原型 · 模拟数据</span></div><a href="02-partition-completed.html">← 上一步</a><a href="04-body-k-ready.html">下一步 →</a></nav>
+  <div class="window">
+    <div class="titlebar"><div class="traffic"><i></i><i></i><i></i></div>CAE Agent</div>
+    <div class="app">
+      <aside class="left">
+        <div class="brand-row">
+          <div class="brand">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17c2-7 9-11 17-9 3 1 5 3 7 6-2 0-4 1-5 3 1 2 3 2 5 2-3 4-8 7-14 6-5-1-9-4-10-8Zm7-1c2 0 3 1 4 3-2 2-4 2-6 1" fill="currentColor"/><path d="M8 23c-1 2-2 3-4 4M22 10l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span class="brand-word">deepseek</span><span class="brand-tag">HARNESS</span>
+          </div>
+          <button class="collapse" title="折叠侧栏" aria-label="折叠侧栏"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4zM9 5v14" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        </div>
+        <button class="new-session" id="newSession"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 8v8m-4-4h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>新会话</span></button>
+        <div class="automation"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5"/><path d="M12 7v5l3 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>自动化任务</span></div>
+        <div class="workspace-heading"><span>工作区</span><div class="workspace-tools"><button title="搜索"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="m15.5 15.5 4 4" stroke="currentColor" stroke-width="1.5"/></svg></button><button title="筛选"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 7h16M7 12h10m-7 5h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="9" cy="7" r="1.5" fill="white" stroke="currentColor"/></svg></button><button title="新建工作区"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5h7l2 2h8v10h-17zM15 4v6m-3-3h6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></button></div></div>
+        <div class="workspace-root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 6.5h7l2 2h8v10h-17z" fill="#edf3ff" stroke="#6592f3" stroke-width="1.3"/></svg><span>默认工作区</span></div>
+        <div class="session-item" id="sessionItem"><span class="session-dot"></span><span id="sessionLabel">新会话</span></div>
+        <div class="left-spacer"></div>
+        <div class="settings-link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="m19 13.5 1.3 1-1.5 2.6-1.6-.5a7 7 0 0 1-1.5.9l-.3 1.7h-3l-.4-1.7a7 7 0 0 1-1.5-.9l-1.6.5-1.5-2.6 1.3-1a7 7 0 0 1 0-1.8l-1.3-1 1.5-2.6 1.6.5a7 7 0 0 1 1.5-.9l.4-1.7h3l.3 1.7a7 7 0 0 1 1.5.9l1.6-.5 1.5 2.6-1.3 1a7 7 0 0 1 0 1.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>设置</span></div>
+      </aside>
+
+      <main class="center">
+        <div class="center-top">
+          <div class="center-session"><span class="session-status" id="centerStatus"></span><span id="centerSessionTitle">开始</span></div>
+          <div class="center-toolbar">
+            <button class="top-icon" title="分栏布局" aria-label="分栏布局"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4zM15 5v14" stroke="currentColor" stroke-width="1.5"/></svg></button>
+            <button class="top-icon" title="全屏" aria-label="全屏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="top-icon" title="右侧栏" aria-label="右侧栏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4zM9 5v14" stroke="currentColor" stroke-width="1.5"/></svg></button>
+          </div>
+        </div>
+        <section class="home-view" id="homeView">
+          <div class="home-title"><svg class="home-whale" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 17c2-7 9-11 17-9 3 1 5 3 7 6-2 0-4 1-5 3 1 2 3 2 5 2-3 4-8 7-14 6-5-1-9-4-10-8Zm7-1c2 0 3 1 4 3-2 2-4 2-6 1" fill="currentColor"/><path d="M8 23c-1 2-2 3-4 4M22 10l4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>探索未至之境</span><span class="preview-tag">预览版</span></div>
+          <div class="workspace-select"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="vertical-align:-3px"><path d="M3.5 6.5h7l2 2h8v10h-17z" stroke="currentColor" stroke-width="1.4"/></svg> 默认工作区 <span>⌄</span></div>
+          <div class="composer">
+            <textarea id="homeMessage" placeholder="描述你想构建的内容，/ 调用指令，@ 文件或对话"></textarea>
+            <div class="composer-bottom"><div class="composer-tools"><button class="round-icon" id="attachHome" title="添加附件" aria-label="添加附件"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button><button class="mode-pill"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M6 5.5h9l3 3v10H6zM14 6v3h4M9 12h6m-6 3h4" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>工作区内修改 <span>⌄</span></button></div><div class="model-controls"><button class="model-pill">deepseek-flash <span style="color:#a2aaa7">High⌄</span></button><button class="send" title="发送" aria-label="发送"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 19V5m0 0L6 11m6-6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div>
+          </div>
+          <div class="welcome-note">CAE Agent · 气帘仿真工作流</div>
+        </section>
+        <section class="chat-view" id="chatView">
+          <div class="chat-scroll" id="chatScroll">
+            <div class="chat-message user"><div class="bubble">新建气帘仿真工作流</div></div>
+            <div class="chat-message"><div class="assistant-line"><span class="assistant-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12c2-4 6-6 10-5 3 .5 5 2.5 6 4.5-2.5.3-3.5 1.5-3 3.2 1 .7 2 1 3.5.8-2 2.7-5.5 4-9 3.3-3.5-.7-6.3-3.2-7.5-6.8Z" stroke="currentColor" stroke-width="1.4"/></svg></span><div class="assistant-content"><p>我会按气帘仿真流程处理几何分区、网格、组合求解、HyperView 后处理和报告。</p><p class="muted" id="chatStatusCopy">请先上传气帘 IGS 文件。分区、网格与后处理结果会在右侧显示，需你确认后才会进入下一阶段。</p></div></div></div>
+          </div>
+          <div class="chat-composer-wrap"><div class="composer"><textarea id="chatMessage" placeholder="继续与 CAE Agent 对话"></textarea><div class="composer-bottom"><div class="composer-tools"><button class="round-icon" title="添加附件" aria-label="添加附件"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14m-7-7h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button><button class="mode-pill">工作区内修改 <span>⌄</span></button></div><div class="model-controls"><button class="model-pill">deepseek-flash High⌄</button><button class="send" id="chatSend" title="发送" aria-label="发送"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 19V5m0 0L6 11m6-6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div></div></div></div>
+        </section>
+      </main>
+
+      <aside class="right">
+        <div class="right-header"><div class="right-title" id="rightTitle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.4"/><path d="m14.8 9.2-2.1 5.6-3.5 1.5 1.5-3.5z" fill="currentColor" opacity=".65"/></svg><span>开始</span></div><div class="right-tools"><button class="top-icon" title="停靠布局"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5zM9 4v16" stroke="currentColor" stroke-width="1.5"/></svg></button><button class="top-icon" title="全屏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="top-icon" title="侧栏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4zM15 5v14" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
+
+        <section class="start-panel" id="startPanel">
+          <svg class="start-compass" viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="24" cy="24" r="20.5" stroke="currentColor" stroke-width="3"/><path d="m31 16-5.5 13-9.5 4.5 4.5-9.5L31 16Z" fill="currentColor" opacity=".75"/></svg>
+          <div class="start-cards">
+            <button class="start-card" id="workspaceCard"><span class="start-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3.5 6.5h7l2 2h8v10h-17z" fill="currentColor" opacity=".22" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 10h17" stroke="currentColor" stroke-width="1.3"/></svg></span><span><span class="start-card-title">工作区文件</span><span class="start-card-desc">浏览会话工作区的文件</span></span><span class="shortcut">⌥ ⌘ P</span></button>
+            <button class="start-card workflow" id="newWorkflow"><span class="start-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="m8 5 11 7-11 7z" fill="currentColor"/></svg></span><span><span class="start-card-title">新建 CAE 仿真工作流 <span class="start-new-badge">CAE</span></span><span class="start-card-desc">气帘分区、网格、求解与报告</span></span><span class="shortcut"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span></button>
+          </div>
+        </section>
+
+        <section class="workflow-view" id="workflowView">
+          <div class="workflow-mode"><span class="mode-dot" id="modeDot"></span><span id="modeLabel">等待上传几何文件</span><span style="margin-left:auto;color:#a0a9a5">流程预览 · 模拟工具执行</span></div>
+          <nav class="wf-steps" id="wfSteps" aria-label="CAE 仿真阶段"></nav>
+          <div class="wf-body">
+            <div class="deliverable-area">
+              <section class="preview-column">
+                <div class="preview-head"><span id="previewTitle">气帘几何文件</span><span class="preview-caption"><i class="live-indicator" id="previewIndicator"></i><span id="previewSubtitle">等待上传 .igs / .iges</span></span></div>
+                <div class="viewport" id="viewport" data-running="">
+                  <div class="viewport-toolbar"><span id="viewToolbarLeft">CAD VIEW · MODEL SPACE</span><span id="viewToolbarRight">未载入</span></div>
+                  <div class="scan"></div>
+                  <svg class="viewport-art" id="viewportArt" viewBox="0 0 600 330" aria-label="当前阶段仿真预览"></svg>
+                  <div class="preview-empty" id="previewEmpty"><button class="upload-cta" id="uploadIgs"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>选择气帘 IGS 文件</button></div>
+                  <div class="viewport-foot" id="viewportFoot">NO GEOMETRY · MM</div><div class="viewport-axis"></div>
+                </div>
+                <div class="step-meta"><span><strong id="stageName">上传气帘几何</strong> <span id="stageDescription">支持 .igs / .iges 格式</span></span><span class="meta-state"><i class="live-indicator" id="stageDot" style="display:none"></i><span id="stageState">等待输入</span></span></div>
+                <div class="run-bar" id="runBar"><span id="runLabel">处理中</span><div class="run-track"><div class="run-fill" id="runFill"></div></div><span id="runPercent">0%</span></div>
+                <div class="stage-actions" id="stageActions"></div>
+              </section>
+              <aside class="filelist">
+                <div class="filelist-head"><span>输出文件</span><span id="fileCount">0</span></div>
+                <div class="filelist-scroll" id="fileList"></div>
+                <div class="workspace-actions"><button id="openWorkspace">打开工作区</button><span id="workspaceHint"> · 等待产物</span></div>
+              </aside>
+            </div>
+            <section class="workflow-controls">
+              <div class="run-title"><span>执行过程</span><small>工具状态与可核验事件</small></div>
+              <div class="trace-list" id="traceList"></div>
+            </section>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </div>
+  <input class="hidden" id="igsInput" type="file" accept=".igs,.iges">
+  <input class="hidden" id="bodyInput" type="file" accept=".k,.key,.dyn">
+  <div class="toast" id="toast" role="status"></div>
+  <div class="modal-bg" id="adjustModal" role="dialog" aria-modal="true" aria-labelledby="adjustTitle"><div class="modal"><div class="modal-head"><span id="adjustTitle">请求调整分区</span><button class="top-icon" id="closeAdjust" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="modal-body"><p>指出需要移动或重新识别的曲线区域。</p><textarea id="adjustText" placeholder="例如：气帘右端的 3 条竖线应归入拉带区。"></textarea></div><div class="modal-footer"><button class="action-btn" id="cancelAdjust">取消</button><button class="action-btn primary" id="submitAdjust">重新识别</button></div></div></div>
+
+  <script>
+    const steps = [
+      {name:'上传 IGS', short:'上传 IGS', actionName:'输入几何', description:'支持 .igs / .iges 格式', tool:'文件输入', file:'CAB02_head_curtain.igs'},
+      {name:'AI 分区', short:'分区', actionName:'几何分区', description:'BELT · CAVITY · SEAM · TETHER', tool:'HyperMesh MCP', file:'CAB02_partitioned.hm'},
+      {name:'网格生成', short:'网格', actionName:'气帘网格', description:'检查拓扑、分层与拉带连接', tool:'HyperMesh MCP', file:'CAB02_curtain.k'},
+      {name:'组合求解', short:'求解', actionName:'组合模型', description:'车身 K + 气帘 K · LS-DYNA', tool:'Qilan Solve MCP', file:'CAB02_main.key'},
+      {name:'HyperView', short:'后处理', actionName:'结果动画', description:'部署动画与关键视图', tool:'HyperView MCP', file:'CAB02_deployment.gif'},
+      {name:'报告交付', short:'报告', actionName:'分析报告', description:'汇总模型、计算与结果材料', tool:'CAE Report', file:'CAB02_气帘仿真报告.pptx'}
+    ];
+    const state = {
+      active:false, current:0, status:['ready','locked','locked','locked','locked','locked'], running:false,
+      runKind:'', igs:'', body:'', traces:[], files:[], adjustments:0, sent:0
+    };
+    const $ = id => document.getElementById(id);
+    const icon = (name, size=13) => {
+      const paths={check:'<path d="m5 12 4 4L19 6"/>',lock:'<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3"/>',play:'<path d="m8 5 11 7-11 7z" fill="currentColor" stroke="none"/>',upload:'<path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5v3A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5v-3"/>',checkfile:'<path d="M6 3.5h8l4 4V20H6zM14 4v4h4M9 13h6m-6 3h6"/>',arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',refresh:'<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 9a7 7 0 0 1 11.8-2L20 12M4 12l2.7 5a7 7 0 0 0 11.8-2"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',send:'<path d="M12 19V5m0 0L6 11m6-6 6 6"/>'};
+      return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name]||paths.checkfile}</svg>`;
+    };
+    function toast(text){const el=$('toast');el.textContent=text;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),2200)}
+    function log(text,kind='success',detail='') { const now=new Date();const time=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');state.traces.unshift({text,kind,detail,time});renderTrace(); }
+    function file(type,name,meta){ if(!state.files.some(x=>x.name===name)){state.files.unshift({type,name,meta})}renderFiles() }
+    function renderSteps(){
+      $('wfSteps').innerHTML=steps.map((step,i)=>{
+        const status=state.status[i],cls=status==='done'?('done'+(i===state.current?' active':'')):i===state.current?'active':status==='locked'?'blocked':'';
+        const mark=status==='done'?icon('check',11):status==='locked'?icon('lock',9):String(i+1);
+        return `<button class="wf-step ${cls}" data-step="${i}" ${status==='locked'||state.running?'disabled':''}><span class="wf-num">${mark}</span><span class="wf-label">${step.short}</span></button>`
+      }).join('');
+      $('wfSteps').querySelectorAll('[data-step]').forEach(b=>b.addEventListener('click',()=>{state.current=Number(b.dataset.step);renderWorkflow()}));
+    }
+    function meshPaths(){let out='';for(let i=0;i<11;i++){const x=137+i*31;out+=`<path class="mesh-line" d="M${x} 68 Q${x-4} 153 ${x+5} 255"/>`}for(let i=0;i<7;i++){const y=78+i*27;out+=`<path class="mesh-line" d="M130 ${y} Q300 ${y-22} 470 ${y+4}"/>`}for(let i=0;i<9;i++)for(let j=0;j<4;j++)out+=`<circle class="mesh-point" cx="${137+i*38}" cy="${82+j*52+((i%3)*3)}" r="1.7"/>`;return out}
+    function curtainBase(){return `<path class="zone-outline" d="M128 59 Q177 39 234 51 L269 37 305 53 342 47 373 62 410 55 434 72 475 67 495 86 490 228 Q460 246 427 235 L390 253 354 242 319 261 280 244 242 253 211 234 176 244 145 225 129 185Z"/><path d="M145 73 Q194 54 235 65 L269 51 306 68 343 61 374 77 410 69 434 87 475 82 480 216Q454 231 427 220L391 238 355 227 319 246 281 229 243 238 212 219 178 229 151 212 144 186Z" fill="none" stroke="#99aaa3" stroke-width=".8"/>`}
+    function sceneSvg(index){
+      const base=curtainBase();
+      const tethers=`<g><path class="zone-tether" d="M161 56 166 31 184 29 188 53Z"/><path class="zone-tether" d="M232 49 236 25 255 24 260 47Z"/><path class="zone-tether" d="M317 48 321 23 340 24 344 45Z"/><path class="zone-tether" d="M388 59 391 37 410 40 413 65Z"/><path class="zone-tether" d="M454 70 458 48 476 52 477 76Z"/></g>`;
+      const seams=`<path class="zone-seam" d="M197 90 Q225 102 246 92T291 94T337 91T382 99T426 92M188 127 Q222 140 248 130T294 133T340 129T386 138T435 131M181 166 Q214 179 246 168T295 173T344 168T391 177T447 170"/>`;
+      if(index===0) return `<g transform="translate(25 0)">${base}${tethers}<path class="zone-outline" fill="none" d="M128 59Q128 180 145 225M269 37 280 244M373 62 354 242M495 86 490 228"/><circle cx="527" cy="72" r="6" fill="none" stroke="#75ac98" stroke-dasharray="2 2"/><circle cx="527" cy="72" r="2" fill="#75ac98"/></g>`;
+      if(index===1) return `<g>${base}<path class="zone-cavity" d="M199 91 Q229 103 249 93T292 96T338 92T383 101T426 94L438 168Q405 176 383 166T338 169T292 165T247 170T188 160Z"/><path class="zone-belt" d="M128 59Q177 39 234 51L269 37 305 53 342 47 373 62 410 55 434 72 475 67 495 86 490 228Q460 246 427 235L390 253 354 242 319 261 280 244 242 253 211 234 176 244 145 225 129 185Z"/>${tethers}${seams}<g fill="#299b7c"><circle cx="169" cy="57" r="2.3"/><circle cx="241" cy="49" r="2.3"/><circle cx="326" cy="48" r="2.3"/><circle cx="397" cy="60" r="2.3"/><circle cx="463" cy="70" r="2.3"/></g></g>`;
+      if(index===2) return `<g>${base}<path class="zone-cavity" d="M199 91 Q229 103 249 93T292 96T338 92T383 101T426 94L438 168Q405 176 383 166T338 169T292 165T247 170T188 160Z"/>${meshPaths()}${tethers}${seams}</g>`;
+      if(index===3) return `<g><path class="body-line" d="M94 54Q128 27 172 27H430Q482 28 515 63M105 63l4 39m394-30-9 44M138 42v34m97-45v36m100-37v38m100-31v36"/><g class="deployed" transform="translate(3 8)"><path class="airbag" d="M154 70Q211 50 263 63L292 49 328 66 372 59 401 76 439 68 458 87 453 203Q425 223 391 211L357 235 319 219 286 242 249 223 213 234 184 215 158 219Z"/>${seams}${tethers}<path class="rope" d="m168 56-10-30m78 22-2-27m92 19 1-29m82 43 13-30m56 44 18-27"/></g></g>`;
+      if(index===4) return `<g><path class="body-line" d="M95 54Q128 28 172 28H429Q482 30 515 63" stroke-width="2.5"/><g class="deployed"><path class="airbag" d="M123 73Q180 49 236 66L270 48 310 67 352 59 385 77 420 68 447 89 442 219Q412 240 380 223L347 257 306 236 270 266 229 239 193 252 159 228 131 231Z"/><path class="result-line" d="M137 103Q194 79 239 92L272 78 309 96 355 84 391 102 426 92M136 143Q190 121 238 135L272 120 310 139 355 128 395 148 443 137M137 187Q185 165 231 181L270 166 310 185 350 174 393 194 439 181"/>${seams}</g><path d="M307 39v242" stroke="#d99448" stroke-dasharray="4 3"/><text x="316" y="48" fill="#a67742" font-size="9">T = 82.5 ms</text><path class="timeline" d="M121 288h340"/><path d="M121 284v8m85-8v8m85-8v8m85-8v8m85-8v8" stroke="#aebbb5"/><circle class="timeline-playhead" cx="286" cy="288" r="4"/><text x="119" y="304" fill="#929d98" font-size="8">0 ms</text><text x="440" y="304" fill="#929d98" font-size="8">200 ms</text></g>`;
+      return `<g><g class="report-page"><rect x="186" y="30" width="223" height="270" rx="3" fill="#fff" stroke="#cdd8d3"/><rect x="186" y="30" width="223" height="10" fill="#21866f"/><text x="204" y="62" fill="#23816e" font-size="8" font-weight="700">CAE SIMULATION REPORT</text><text x="204" y="90" fill="#24322d" font-size="15" font-weight="700">气帘仿真分析报告</text><text x="204" y="106" fill="#87938e" font-size="8">CAB-02 · 计算结果与评估</text><path d="M204 120h186" stroke="#e3e9e6"/><path d="M206 179q42-37 77-20t65-17l33 24-6 48q-33 20-64 4t-52 12l-51-19Z" fill="#e4f3ed" stroke="#278b72"/><path d="M211 172q33-16 62-6t46-13 54 11M213 194q33-14 62-4t45-11 55 9" fill="none" stroke="#49a188" stroke-width=".8"/><path d="M204 235h186m-186 8h152m-152 8h174m-174 8h132" stroke="#dde6e1" stroke-width="2.3" stroke-linecap="round"/><rect x="204" y="273" width="53" height="14" rx="3" fill="#e6f3ec"/><text x="215" y="283" fill="#3e8861" font-size="7">ALL CHECKS</text></g></g>`;
+    }
+    function renderFiles(){
+      $('fileCount').textContent=String(state.files.length);
+      if(!state.files.length){$('fileList').innerHTML='<div class="file-empty">本工作流生成的 .hm、.k、求解结果和报告将列在这里。</div>';return}
+      $('fileList').innerHTML=state.files.map(f=>`<button class="file-row" data-file="${f.name}" title="${f.name}"><span class="file-ext">${f.type}</span><span><span class="file-name">${f.name}</span><span class="file-meta">${f.meta}</span></span></button>`).join('');
+      $('fileList').querySelectorAll('[data-file]').forEach(b=>b.addEventListener('click',()=>toast(`已选择产物：${b.dataset.file}`)));
+    }
+    function renderTrace(){
+      const items=state.traces.length?state.traces:[{text:'工作流等待输入',detail:'上传气帘 IGS 文件后开始',kind:'active',time:'—'}];
+      $('traceList').innerHTML=items.slice(0,6).map(x=>`<div class="trace-item ${x.kind}"><i class="trace-dot"></i><span class="trace-copy"><strong>${x.text}</strong>${x.detail?`<small>${x.detail}</small>`:''}</span><span class="trace-time">${x.time}</span></div>`).join('');
+    }
+    function renderWorkflow(){
+      const i=state.current, step=steps[i], status=state.status[i];
+      renderSteps();renderFiles();renderTrace();
+      $('previewTitle').textContent=i===0?'气帘几何文件':i===1?'HyperMesh 分区截图':i===2?'网格预览':i===3?'组合模型预览':i===4?'HyperView 结果视图':'报告预览';
+      $('previewSubtitle').textContent=state.running?'正在执行':i===0?(state.igs||'等待上传 .igs / .iges'):status==='review'?'待用户确认':'结果预览';
+      $('viewToolbarLeft').textContent=i===4?'HYPERVIEW · RESULT VIEW':i===5?'PPTX · COVER PREVIEW':'HYPERMESH · MODEL SPACE';
+      $('viewToolbarRight').textContent=i===0?(state.igs?'IGES LOADED':'NO FILE'):i===4?'d3plot · 200 ms':'VIEW · X-Z / MM';
+      $('viewportFoot').textContent=i===0?(state.igs?'CURVES · MM · XZ':'NO GEOMETRY · MM'):i===1?'PARTITION · BELT / CAVITY / SEAM / TETHER':i===2?'MESH · 5.0 MM · SHELL ELEMENTS':i===3?'ASSEMBLY · BIW + CURTAIN · Z-UP':i===4?'DISPLACEMENT · T = 82.5 ms':'CAB-02 · REPORT PREVIEW';
+      $('viewportArt').innerHTML=sceneSvg(i);
+      $('previewEmpty').classList.toggle('hidden',i!==0||Boolean(state.igs));
+      $('viewportArt').classList.toggle('hidden',i===0&&!state.igs);
+      $('viewport').classList.toggle('running',state.running);
+      $('viewport').dataset.running=state.runKind;
+      $('previewIndicator').style.background=state.running?'#4e91df':status==='review'?'#d99b52':'#64aa7d';
+      $('stageName').textContent=step.actionName;
+      $('stageDescription').textContent=state.running?step.tool+' 正在执行':step.description;
+      $('stageState').textContent=state.running?'正在处理':status==='review'?'待确认':status==='done'?'已完成':status==='ready'?'等待输入':status==='needs-file'?'需上传车身 K':'等待前置阶段';
+      $('stageDot').style.display=state.running||status==='review'?'inline-block':'none';
+      $('stageDot').style.background=state.running?'#5d8ee5':status==='review'?'#d99b52':'#64aa7d';
+      $('modeLabel').textContent=state.running?`${step.tool} · ${step.name}执行中`:status==='review'?`${step.name}结果待确认`:i===0?(state.igs?'几何文件已选择':'等待上传几何文件'):status==='done'?(state.status.every(s=>s==='done')?'流程已完成':step.name+'已完成'):status==='needs-file'?'等待车身 K 文件':`${step.name} · ${status==='ready'?'等待开始':'等待前置确认'}`;
+      $('modeDot').style.background=state.running?'#5d8ee5':status==='review'?'#d99b52':status==='done'?'#62aa7c':'#d8a25c';
+      $('runBar').classList.toggle('active',state.running);
+      renderActions();
+    }
+    function renderActions(){
+      const i=state.current,status=state.status[i],actions=$('stageActions');let html='';
+      if(state.running){html=`<button class="action-btn" disabled>${icon('clock')}处理中…</button>`}
+      else if(i===0){html=`<button class="action-btn primary" data-do="start-partition" ${state.igs?'':'disabled'}>${icon('play')}开始 AI 分区</button>`}
+      else if(i===1&&status==='review'){html=`<button class="action-btn" data-do="adjust">${icon('refresh')}请求调整</button><button class="action-btn primary" data-do="approve-partition">${icon('check')}确认分区并开始网格</button>`}
+      else if(i===2&&status==='review'){html=`<button class="action-btn" data-do="back-partition">${icon('arrow')}返回分区</button><button class="action-btn primary" data-do="approve-mesh">${icon('check')}确认网格并进入求解</button>`}
+      else if(i===3&&status!=='done'){html=`<button class="action-btn" data-do="choose-body">${icon('upload')}${state.body?'更换车身 K':'上传车身 K'}</button><button class="action-btn primary" data-do="start-solve" ${state.body?'':'disabled'}>${icon('play')}提交求解</button>`}
+      else if(i===4&&status==='ready'){html=`<button class="action-btn primary" data-do="run-post">${icon('play')}开始 HyperView 后处理</button>`}
+      else if(i===4&&status==='review'){html=`<button class="action-btn" data-do="rerun-post">${icon('refresh')}重新绘制</button><button class="action-btn primary" data-do="approve-post">${icon('check')}确认结果并生成报告</button>`}
+      else if(i===5&&status==='ready'){html=`<button class="action-btn primary" data-do="run-report">${icon('play')}生成报告</button>`}
+      else if(i===5&&status==='done'){html=`<button class="action-btn" data-do="restart">新建另一轮</button><button class="action-btn primary" data-do="report-download">${icon('upload')}导出模拟摘要</button>`}
+      else if(status==='done'){html=`<button class="action-btn" data-do="next">已完成 · 查看下一阶段 ${icon('arrow')}</button>`}
+      else if(status==='locked'){html=`<button class="action-btn" disabled>${icon('lock')}等待前置阶段</button>`}
+      actions.innerHTML=html;
+      actions.querySelectorAll('[data-do]').forEach(b=>b.addEventListener('click',()=>handleAction(b.dataset.do)));
+    }
+    function activate(){
+      state.active=true;state.current=0;state.status=['ready','locked','locked','locked','locked','locked'];state.traces=[];state.files=[];
+      $('startPanel').classList.add('hidden');$('workflowView').classList.add('active');$('homeView').classList.add('hidden');$('chatView').classList.add('active');
+      $('rightTitle').innerHTML=`<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16v11H4zM8 3.5v6m8-6v6M8 14h3m2 0h3" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span>CAE 仿真工作流</span>`;
+      $('centerSessionTitle').textContent='气帘仿真工作流';$('centerStatus').classList.add('live');$('sessionItem').classList.add('live');$('sessionLabel').textContent='气帘仿真工作流';
+      log('创建气帘仿真工作流','success','流程阶段已初始化');renderWorkflow();
+    }
+    function setCurrent(i,status){state.current=i;state.status[i]=status;renderWorkflow()}
+    function simulate(i,kind,duration,doneStatus,detail,then){
+      state.current=i;state.status[i]='running';state.running=true;state.runKind=kind;
+      log(`${steps[i].tool} · ${steps[i].name}开始`,'active',detail);renderWorkflow();
+      const start=performance.now();
+      const tick=now=>{const p=Math.min(1,(now-start)/duration);$('runFill').style.width=`${Math.floor(p*100)}%`;$('runPercent').textContent=`${Math.floor(p*100)}%`;if(p<1)requestAnimationFrame(tick);else{state.running=false;state.runKind='';state.status[i]=doneStatus;log(`${steps[i].name}完成`,'success',detail);renderWorkflow();if(then)then()}};
+      requestAnimationFrame(tick);
+    }
+    function startPartition(){
+      simulate(0,'upload',1200,'done','IGES 文件读取 · 坐标与曲线检查',()=>{
+        file('IGS',state.igs,'输入几何 · 已读取');
+        simulate(1,'partition',3300,'review','四功能区识别 · HyperMesh 截图已更新',()=>{
+          file('HM',steps[1].file,'4 个功能区 · 待确认');appendAssistant('分区已完成，截图和四类组件已就绪。请检查边界，确认后我会开始网格划分。');
+        });
+      });
+    }
+    function handleAction(action){
+      if(action==='start-partition'){if(!state.igs){$('igsInput').click();return}startPartition()}
+      if(action==='approve-partition'){
+        state.status[1]='done';log('用户确认分区结果','success','继续进入网格生成');file('PNG','partition_preview.png','分区确认截图');
+        simulate(2,'mesh',4700,'review','拓扑检查 · 5 mm 网格 · 拉带连接门禁',()=>{
+          file('K',steps[2].file,'气帘网格 · 待确认');file('PNG','mesh_quality.png','网格质量截图');appendAssistant('网格已生成，质量与连接检查完成。请确认网格预览，再上传车身 K 文件进入组合求解。');
+        });
+      }
+      if(action==='adjust'){$('adjustModal').classList.add('show');$('adjustText').focus()}
+      if(action==='approve-mesh'){
+        state.status[2]='done';log('用户确认网格质量','success','车身 K 文件为组合求解必需输入');setCurrent(3,'ready');$('chatStatusCopy').textContent='网格已确认。请上传车身 K 文件，随后可以开始组合求解。';appendAssistant('网格已确认。请在右侧工作流中上传车身 .k 文件。');
+      }
+      if(action==='back-partition'){setCurrent(1,'review')}
+      if(action==='choose-body')$('bodyInput').click();
+      if(action==='start-solve'){
+        if(!state.body){toast('请先上传车身 K 文件');return}
+        state.status[3]='running';
+        simulate(3,'solve',6700,'done','组合 main.key · LS-DYNA · d3plot 健康检查',()=>{
+          file('K',steps[3].file,'车身 + 气帘组合模型');file('D3','d3plot','LS-DYNA 求解结果');
+          state.status[4]='ready';setCurrent(4,'ready');$('chatStatusCopy').textContent='组合求解完成。可以开始 HyperView 后处理，检查部署动画与关键时刻视图。';appendAssistant('组合求解完成，d3plot 已生成。下一步开始 HyperView 后处理。');
+        });
+      }
+      if(action==='run-post'||action==='rerun-post')simulate(4,'post',4400,'review','加载 d3plot · 导出部署 GIF 与关键视图',()=>{
+        file('GIF',steps[4].file,'部署动画 · 4 视角');file('PNG','deployment_last_frame.png','末态截图');appendAssistant('HyperView 后处理结果已准备好。请查看部署动画与末态截图，确认后我会生成报告。');
+      });
+      if(action==='approve-post'){state.status[4]='done';log('用户确认后处理结果','success','进入报告生成');setCurrent(5,'ready');appendAssistant('后处理结果已确认。可以生成气帘仿真分析报告。')}
+      if(action==='run-report')simulate(5,'report',3600,'done','汇总模型参数 · 求解结果 · 动画与截图',()=>{
+        file('PPT',steps[5].file,'气帘仿真分析 · 中文');$('chatStatusCopy').textContent='报告已生成，所有流程产物已列在右侧。';appendAssistant('报告已生成，流程产物已汇总。你可以导出报告摘要或开始另一轮。');
+      });
+      if(action==='restart'){state.current=0;state.status=['ready','locked','locked','locked','locked','locked'];state.igs='';state.body='';state.files=[];state.traces=[];appendAssistant('新一轮工作流已就绪，请上传新的气帘 IGS 文件。');renderWorkflow()}
+      if(action==='report-download')downloadSummary();
+      if(action==='next'){const next=state.current+1;if(next<6){state.current=next;renderWorkflow()}}
+    }
+    function appendAssistant(text){
+      const wrapper=document.createElement('div');wrapper.className='chat-message';wrapper.innerHTML=`<div class="assistant-line"><span class="assistant-mark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 12c2-4 6-6 10-5 3 .5 5 2.5 6 4.5-2.5.3-3.5 1.5-3 3.2 1 .7 2 1 3.5.8-2 2.7-5.5 4-9 3.3-3.5-.7-6.3-3.2-7.5-6.8Z" stroke="currentColor" stroke-width="1.4"/></svg></span><div class="assistant-content"><p>${text}</p></div></div>`;$('chatScroll').append(wrapper);$('chatScroll').scrollTop=$('chatScroll').scrollHeight;
+    }
+    function appendUser(text){const wrapper=document.createElement('div');wrapper.className='chat-message user';wrapper.innerHTML=`<div class="bubble"></div>`;wrapper.querySelector('.bubble').textContent=text;$('chatScroll').append(wrapper);$('chatScroll').scrollTop=$('chatScroll').scrollHeight}
+    function sendWorkflowMessage(text){const clean=text.trim();if(!clean)return;appendUser(clean);state.sent++;log('收到补充要求','success',clean.length>60?clean.slice(0,60)+'…':clean);appendAssistant(state.running?'已记录这条补充要求，当前工具任务会完成后再应用。':'已记录补充要求，将按当前阶段与确认状态继续处理。')}
+    function downloadSummary(){const text=`CAE 气帘工作流摘要\n项目：CAB-02\nIGS：${state.igs||'未上传'}\n车身 K：${state.body||'未上传'}\n阶段：${state.status.map((s,i)=>`${i+1}. ${steps[i].name} - ${s}`).join('\n')}\n\n此文件为交互原型导出的模拟摘要。`;const url=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='CAB02_workflow_summary.txt';a.click();URL.revokeObjectURL(url)}
+    function chooseFile(input,callback){const f=input.files&&input.files[0];if(!f)return;callback(f.name);input.value=''}
+
+    $('newWorkflow').addEventListener('click',activate);
+    $('newSession').addEventListener('click',()=>{if(state.active){toast('当前工作流已保留在右侧面板');return}toast('已进入新会话')});
+    $('workspaceCard').addEventListener('click',()=>toast('工作区文件将在当前会话中打开'));
+    $('uploadIgs').addEventListener('click',()=>$('igsInput').click());
+    $('igsInput').addEventListener('change',()=>chooseFile($('igsInput'),name=>{state.igs=name;$('previewEmpty').classList.add('hidden');$('viewportArt').classList.remove('hidden');$('previewSubtitle').textContent=name;$('viewToolbarRight').textContent='IGES LOADED';$('viewportFoot').textContent='CURVES · MM · XZ';file('IGS',name,'已选择 · 待导入');renderWorkflow();toast(`已选择 ${name}`)}));
+    $('bodyInput').addEventListener('change',()=>chooseFile($('bodyInput'),name=>{state.body=name;log('上传车身 K 文件','success',name);file('K',name,'车身模型 · 已就绪');renderWorkflow();toast('车身 K 文件已加入组合模型')}));
+    $('chatSend').addEventListener('click',()=>{const text=$('chatMessage').value.trim();if(text){$('chatMessage').value='';sendWorkflowMessage(text)}});
+    $('chatMessage').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatSend').click()}});
+    $('homeMessage').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();if($('homeMessage').value.trim()){activate();sendWorkflowMessage($('homeMessage').value);$('homeMessage').value=''}}});
+    $('attachHome').addEventListener('click',()=>{$('igsInput').click()});
+    $('openWorkspace').addEventListener('click',()=>toast('工作区文件列表已就绪'));
+    $('closeAdjust').addEventListener('click',()=>$('adjustModal').classList.remove('show'));
+    $('cancelAdjust').addEventListener('click',()=>$('adjustModal').classList.remove('show'));
+    $('submitAdjust').addEventListener('click',()=>{const text=$('adjustText').value.trim();if(!text){$('adjustText').focus();return}$('adjustModal').classList.remove('show');state.adjustments++;log('用户提交分区调整','success',text);$('adjustText').value='';simulate(1,'partition',2600,'review','应用调整意见 · 重跑分区 · 更新截图',()=>{file('HM',steps[1].file,'分区更新 v'+(3+state.adjustments));file('PNG','partition_preview_v'+(3+state.adjustments)+'.png','更新后的分区截图');appendAssistant('已按调整意见更新分区。请复核新版截图。')})});
+    renderFiles();renderTrace();
+
+    const stagePreview = {"slug": "03-mesh-completed", "title": "网格生成完成", "badge": "待确认网格", "current": 2, "status": ["done", "done", "review", "locked", "locked", "locked"], "upto": 2, "user": "分区没有问题，确认分区并生成网格。", "message": "网格已生成，气帘 K 文件与网格截图已就绪。请查看网格、拓扑与拉带连接的示意结果，确认后进入组合求解准备。", "results": [["气帘模型", "CAB02_curtain.k"], ["截图", "mesh_quality.png"], ["确认后", "上传车身 K 文件"]], "hint": "网格结果等待确认，求解阶段需要补充车身 K 文件。", "files": [{"type": "PNG", "name": "mesh_quality.png", "meta": "网格质量截图"}, {"type": "K", "name": "CAB02_curtain.k", "meta": "气帘网格模型 · 待确认"}, {"type": "PNG", "name": "partition_preview.png", "meta": "分区截图"}, {"type": "HM", "name": "CAB02_partitioned.hm", "meta": "四功能区模型"}, {"type": "IGS", "name": "CAB02_head_curtain.igs", "meta": "输入几何 · 已读取"}], "traces": [{"text": "等待用户确认网格", "detail": "确认后进入求解准备", "kind": "active", "time": "10:37:00"}, {"text": "HyperMesh MCP · 网格生成完成", "detail": "气帘 K 文件 + 网格截图", "kind": "success", "time": "10:36:00"}, {"text": "用户确认分区结果", "detail": "进入网格阶段", "kind": "success", "time": "10:35:00"}, {"text": "等待用户确认分区", "detail": "确认后才开始网格", "kind": "success", "time": "10:34:00"}, {"text": "分区产物已生成", "detail": ".hm 模型 + 分区截图", "kind": "success", "time": "10:33:00"}, {"text": "HyperMesh MCP · 分区完成", "detail": "四功能区识别完成", "kind": "success", "time": "10:32:00"}, {"text": "几何读取完成", "detail": "轮廓预览已生成", "kind": "success", "time": "10:31:00"}, {"text": "气帘 IGS 文件上传完成", "detail": "CAB02_head_curtain.igs", "kind": "success", "time": "10:30:00"}]};
+    function initializeStagePreview() {
+      activate();
+      Object.assign(state, { current:stagePreview.current, status:stagePreview.status.slice(), igs:'CAB02_head_curtain.igs',
+        body:stagePreview.upto>=3?'BIW.k':'', files:stagePreview.files, traces:stagePreview.traces, running:false, runKind:'' });
+      $('chatStatusCopy').textContent='每个阶段的产物会在右侧显示。分区、网格与后处理需要你确认后继续。';
+      appendUser(stagePreview.user);
+      appendAssistant(stagePreview.message);
+      const content=$('chatScroll').lastElementChild.querySelector('.assistant-content');
+      const result=document.createElement('div');result.className='snapshot-result';
+      result.innerHTML='<div class="snapshot-result-title">'+stagePreview.title+' · '+stagePreview.badge+'</div><dl>'+stagePreview.results.map(([label,value])=>'<dt>'+label+'</dt><dd>'+value+'</dd>').join('')+'</dl><div class="snapshot-result-note">界面原型 · 文件与仿真结果均为模拟数据</div>';
+      content.append(result);
+      const hint=document.createElement('p');hint.className='muted';hint.textContent=stagePreview.hint;content.append(hint);
+      renderWorkflow();
+      $('workspaceHint').textContent=' · 模拟产物';
+      if(stagePreview.current===3 && stagePreview.status[3]==='done') {
+        $('previewTitle').textContent='组合求解完成 · 结果预览';
+        $('previewSubtitle').textContent='d3plot 已就绪';
+        $('viewToolbarRight').textContent='LS-DYNA · COMPLETED';
+        $('viewportFoot').textContent='ASSEMBLY · BIW + CURTAIN · SOLVED';
+        $('stageActions').innerHTML='<button class="action-btn primary" id="snapshotPostAction">'+icon('play')+'进入 HyperView 后处理</button>';
+        $('snapshotPostAction').addEventListener('click',()=>setCurrent(4,'ready'));
+      }
+      if(stagePreview.current===0) $('previewSubtitle').textContent='几何读取完成';
+      if(stagePreview.slug==='04-body-k-ready') $('previewSubtitle').textContent='车身 K + 气帘 K 已就绪';
+      if(stagePreview.current===5) $('previewSubtitle').textContent='报告已生成';
+      $('chatScroll').scrollTop=$('chatScroll').scrollHeight;
+    }
+    initializeStagePreview();
+  </script>
+</body>
+</html>
