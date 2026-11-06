@@ -23,3 +23,14 @@ contextBridge.exposeInMainWorld('caeSimulation', {
   checkPaths: (paths: unknown) => ipcRenderer.invoke('simulation:check-paths', paths),
   checkService: (settings: unknown) => ipcRenderer.invoke('simulation:check-service', settings),
 })
+
+contextBridge.exposeInMainWorld('caeWorkflow', {
+  load: (sessionId: string) => ipcRenderer.invoke('workflow:load', sessionId),
+  create: (sessionId: string) => ipcRenderer.invoke('workflow:create', sessionId),
+  submit: (sessionId: string, revision: number, values: unknown) => ipcRenderer.invoke('workflow:submit', sessionId, revision, values),
+  confirm: (sessionId: string, revision: number) => ipcRenderer.invoke('workflow:confirm', sessionId, revision),
+  adjust: (sessionId: string, revision: number, feedback: string) => ipcRenderer.invoke('workflow:adjust', sessionId, revision, feedback),
+  browse: (sessionId: string, fieldId: string) => ipcRenderer.invoke('workflow:browse', sessionId, fieldId),
+  open: (sessionId: string, file: string) => ipcRenderer.invoke('workflow:open', sessionId, file),
+  preview: (sessionId: string, file: string) => ipcRenderer.invoke('workflow:preview', sessionId, file),
+})

@@ -1,117 +1,92 @@
-# CAE 气帘（侧帘气囊）仿真工作流
-
-## 触发条件
-当用户提到"气帘仿真"、"气囊分析"、"airbag simulation"、"igs 导入"、"LS-DYNA 求解"等关键词时使用此 skill。
-
-## 工作流概览
-气帘 CAE 仿真分六个顺序步骤，每步依赖上一步的输出文件：
-
-```
-IGS文件 → [导入] → model.hm → [分区] → model_partitioned.hm
-        → [网格] → model_meshed.hm + airbag.key
-        → [求解] → d3plot → [导出GIF] → result.gif
-        → [报告] → report.pptx
-```
-
-## Step 1 — 导入 IGS/IGES 几何
-**工具**: `mcp__cae__hypermesh_import_igs`
-- 上传后先检查 HyperMesh 配置；未配置批处理程序路径时暂停导入，提示用户到“设置 → 仿真软件”配置。保留已选 IGS 文件，配置完成后继续当前步骤。
-- 请用户提供 IGS 文件的完整 Windows 路径（如 `D:\projects\airbag\cushion.igs`）
-- 默认比例因子 1.0（毫米模型无需缩放）
-- 输出 `model.hm` 保存到 `CAE_WORKDIR`
-- **常见问题**: 若导入失败，检查路径中无中文字符，确认 HyperMesh 版本 ≥ 2020
-
-## Step 2 — 气帘模型分区
-**工具**: `mcp__cae__hypermesh_partition_airbag`
-- 默认创建三个组件: `airbag_cushion`（气囊织物）、`airbag_inflator`（充气器侧板）、`airbag_vent`（泄气孔区域）
-- 用户可自定义组件名称
-- 此步将几何按功能区域分配到不同 Component，便于后续差异化网格和材料定义
-- **注意**: 分区完成后建议用户在 HyperMesh GUI 中核实边界是否正确
-
-## Step 3 — 网格划分
-**工具**: `mcp__cae__hypermesh_generate_mesh`
-- 推荐参数: `element_size=5.0` mm，`element_type=quad`
-- 质量标准: `quality_warpage≤5°`，`quality_aspect≤5`
-- 输出: `model_meshed.hm` + `airbag.key`（LS-DYNA 关键字文件）
-- 若质量不达标，减小 `element_size` 或切换为 `mixed` 类型重试
-
-## Step 4 — LS-DYNA 显式求解
-**工具**: `mcp__cae__lsdyna_solve`
-- 提交前检查当前求解方式：本地软件需配置 LS-DYNA 路径，本地或服务端求解服务需配置对应服务地址。缺少配置时暂停提交，引导用户到“设置 → 仿真软件”完成配置，保留模型文件和求解参数。
-- 输入: `airbag.key`
-- 推荐: `ncpu=4`，`memory=2000m`（根据机器配置调整）
-- **提交前主动提示用户**：求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源，请预留足够的计算时间。
-- 提交后说明正在等待求解结果，基于实际工具状态汇报进度；没有实际进度数据时，不要承诺具体完成时间或编造进度。
-- 求解完成后检查 `d3plot` 文件是否生成
-- **若出现 *** Error**: 将 messag 文件内容转交给用户分析
-
-## Step 5 — HyperView 导出 GIF
-**工具**: `mcp__cae__hyperview_export_gif`
-- 输入: `d3plot` 文件路径
-- 推荐: `result_type=displacement`，`fps=10`，`width=1280`，`height=720`
-- 也可导出 `stress` 或 `pressure` 云图
-- 输出: `result.gif`
-
-## Step 6 — 生成 PowerPoint 报告
-**工具**: `mcp__cae__generate_ppt_report`
-- 汇总前五步的关键信息：网格统计、求解参数、GIF 动画
-- 默认语言：中文，可通过 `title` 参数修改
-- 输出: `report.pptx`
-
-## 错误处理策略
-| 错误类型 | 处理建议 |
-|---------|---------|
-| hmbatch.exe 不存在 | 检查 `CAE_HMBATCH` 环境变量或 `config.yaml` 中的路径 |
-| IGS 导入失败 | 检查文件是否被占用，路径无中文，用 HyperMesh GUI 验证文件有效性 |
-| LS-DYNA negative volume | 检查网格质量，减小时间步或增加 Hourglass 控制 |
-| HyperView GIF 导出空白 | 确认 d3plot 文件完整，尝试减少帧范围 |
-| pptx 生成失败 | 确认 GIF 文件路径正确，或跳过 gif_path 参数 |
-
-## 默认文件路径（可通过环境变量覆盖）
-```
-CAE_WORKDIR  = D:\cae_projects\airbag
-CAE_HMBATCH  = C:\Altair\2023\hwdesktop\hw\bin\win64\hmbatch.exe
-CAE_LSDYNA   = C:\LSTC\ls971_s_R13.1_winx64_ifort131.exe
-CAE_HYPERVIEW = C:\Altair\2023\hwdesktop\hw\bin\win64\hw.exe
-```
-
+---
+name: cae-airbag
+description: 在桌面应用中按用户确认的项目参数，编排 IGS 导入、四分区、网格、组合求解、HyperView 后处理和报告。
 ---
 
-## 扩展 MCP 工具（hyperworks-mcp & qilan-solve-mcp）
+# 气帘仿真编排
 
-### HyperWorks MCP（`mcp__hyperworks__*`）
-通过 `packages/hyperworks-mcp` Python 包提供约 70 个 HyperWorks 工具，覆盖：
-- **hmbatch 脚本执行** — `mcp__hyperworks__run_hmbatch_script`
-- **工作提交（OptiStruct/Radioss）** — `mcp__hyperworks__submit_optistruct_job`, `mcp__hyperworks__submit_radioss_job`
-- **实时 HyperMesh Bridge** — `mcp__hyperworks__live_send_tcl`, `mcp__hyperworks__live_get_session_info`
-- **HyperView 后处理** — `mcp__hyperworks__hyperview_open_result`, `mcp__hyperworks__hyperview_export_animation`
-- **HyperStudy DOE** — `mcp__hyperworks__hyperstudy_create_study`
-- **环境探测** — `mcp__hyperworks__probe_environment`
+本文件只负责应用流程。算法与门禁以 `docs` 中四份技能为准，禁止另造一套分区或网格算法。
 
-运行时需要 `HYPERWORKS_HOME` 环境变量指向 Altair 安装根目录。
+## 先取得当前阶段
 
-### Qilan Solve MCP（`mcp__qilan_solve__*`）
-通过 `packages/qilan-solve` Python 包提供 LS-DYNA 气帘仿真专用工具：
+1. 调用 `cae_workflow` 的 `create` 或 `status`。工作流绑定当前对话。
+2. 提示用户打开对话顶部的“仿真工作流”，填写当前阶段的参数。界面使用 dsh 原生侧栏与默认布局。
+3. 当状态为 `parameters`、`blocked`、`review` 时停止执行，等待用户操作。只有用户表单提交后的 `ready` 状态可以 `begin`。
+4. `begin` 返回 `state.executionId`、`state.skillPath`、`state.jobDirectory`、当前阶段定义及已提交参数。先读对应 skill，再读取生成的 `<stage>.parameters.json`；网格和求解分别有 `mesh.case.json`、`solve.case.json`。
+5. 只执行当前阶段。完成后调用 `complete`，传 `execution_id` 和真实产物。后续阶段重新等用户填写参数；分区、网格、后处理还要用户确认结果。
 
-| 工具 | 说明 |
-|------|------|
-| `mcp__qilan_solve__check_environment` | 检查 Python/LS-DYNA/HyperView 环境 |
-| `mcp__qilan_solve__check_hyperview` | 验证 HyperView 可执行路径 |
-| `mcp__qilan_solve__validate_kfile` | 验证 LS-DYNA .key 文件语法 |
-| `mcp__qilan_solve__health_gate` | 网格质量门控（前处理快速检查） |
-| `mcp__qilan_solve__read_d3plot` | 读取 d3plot 结果（时间步 / 节点位移） |
-| `mcp__qilan_solve__render_deployment` | 渲染气帘展开动画并生成 GIF |
+用户确认只通过应用界面发生。不要代用户填表、改状态文件或连续跳过多个阶段。
 
-### 建议工具调用链（集成版）
+## 参数来源
+
+- IGS、工作目录、网格尺寸及类型、当前模型案例配置、车身和参考模型、材料、装配 DY/DZ、拉带数量、终止时间、CPU/内存等来自表单。
+- 后处理时刻范围、帧数、帧率、云图类型来自表单。
+- 报告标题、人员、模板、测点、坐标对齐依据、G.3 头部重心、测量/展开对照/起爆时刻来自表单。`g14_thickness.py` 的 `--t-main/--t-early/--tdet` 必须全部显式传入，不能使用脚本的案例默认时刻。
+- 部件号、分层、锚点位置、参考卡参数应从当前模型和参考 deck 读取并校验。不能从 `cab2`、`case_config.example.json` 等样例直接复制。
+- 如果技能还需要用户提供参数，或者当前输入不足以确定物理条件，调用 `request_input`，传当前 `execution_id`，在 `message` 中具体说明缺少的信息、单位及来源。界面会提示补充，等待用户提交后再执行。
+- 允许从实际文件计算派生量；必须写入证据，不能用样例坐标、项目路径、个人电脑 Python 路径或经验数值替代未知输入。
+- 所有输出写入本工作流目录，保留原输入。软件路径使用应用设置，Python 使用已配置工具环境；显式覆盖技能脚本中的历史默认路径。
+
+## 六个阶段
+
+| 阶段 | 权威技能 | 关键要求 |
+| --- | --- | --- |
+| import | `docs/气帘iges分区skill/SKILL.md` | 用 `t00_import_iges.tcl`，显式设置 IGES/WORKDIR/HMBATCH/PY；交付真实 curves.hm |
+| partition | 同上 | v2 采样 → auto_partition2 → p06 → t07 → t08；BELT/CAVITY/SEAM/TETHER 四分区；独立回读 VERIFY_FAIL=0 |
+| mesh | `docs/气帘自动网格划分_20261101(1)/气帘自动网格划分/SKILL.md` | 先读接新模型 runbook、pitfalls、generic pipeline；用本次 mesh.case.json；四道门禁全部通过 |
+| solve | `docs/气帘计算求解skill_20261102(1)/气帘计算求解skill/SKILL.md` | 先读 references/09、10；组合 K，ID 审计，保持参考卡物理参数，parity/阻尼门禁后先探针再正式算 |
+| postprocess | `docs/气帘评判及报告skill_20261103(1)/气帘评判及报告skill/SKILL.md` | 实际 bridge 状态 → MCP 启动 → 轮询在线；按用户时刻等参数生成四视角与动画 |
+| report | 同上 | summary 只写过程摘要；assessment 使用真实测点与坐标对齐证据，缺失动态证据不得宣称法规 PASS |
+
+不要调用 `hypermesh_partition_airbag`，它是早期三组件占位实现。也不要把旧的通用 mesh 工具当作四分区门禁链的替代品。
+技能 shell 脚本含 POSIX 命令；Windows 上先确认 Bash 可用，或逐条用现有 PowerShell/MCP 运行相同规范脚本，不能把 `.sh` 直接当作 Windows 可执行程序。
+
+### 求解
+
+必须统一调用 `mcp__cae__lsdyna_solve`，它按设置选择本地软件、本地服务或远程服务。不要用其它工具绕过后端设置。`ncpu`、`memory` 使用本次提交值。
+
+提交前提示用户：“求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。”界面已经要求用户确认，不必在对话中重复索要授权。
+服务模式需确认模型及 INCLUDE 文件能被服务访问；结果可能为远程路径，后处理前必须让用户提供本机可读的映射或同步文件。
+目前同步求解接口最长等待 48 小时。工具超时、断线、应用重启或用户停止后，先核实实际进程或服务端任务；不可自动重复提交。
+不得编造百分比、剩余时间或把进程启动当作完成。检查正常终止、d3plot、健康门禁再交付。
+
+### 后处理与报告
+
+遵循 `references/hyperworks_autostart.md`。历史文档里的个人 workspace 是案例，当前输入输出应使用本机 bridge 实际 allowed_roots；需要配置时提示用户。
+按实际接口传用户提供的时间范围、帧数、帧率、云图类型；若 CLI 不支持某选项，使用有该能力的 MCP 接口，或者 request_input 说明限制，不能静默忽略用户参数。
+`hv_render.py check` 的 `unique md5` 必须等于截图数且包含四视角。脚本返回 0 但存在重复截图也不能通过应用门禁。
+报告需列出真实参数、证据来源和缺失项。提供客户模板时保留主题，不用通用工具覆盖客户样式。无模板的 summary 可用通用报告工具，但必须传实际网格类型、尺寸、质量信息和 ms 单位。
+
+## 交付与门禁协议
+
+`complete` 的 `artifacts` 是 `{role, path, remote?}` 数组，完整路径指向当前执行产生的非空文件；不能用旧案例结果冒充。必需角色在 `status/begin` 的 `stage.outputs` 中。
+
+- 分区的 `verification` 为本次独立回读的原始文本，包含 `VERIFY_FAIL=0`。
+- 网格/求解/后处理的 `verification` 为本次门禁汇总 JSON：
+
+```json
+{
+  "checks": [
+    {"name": "strict_k", "passed": true, "evidence": "<本次命令输出或原始门禁 JSON 的完整路径>"}
+  ]
+}
 ```
-IGS 导入
-  → mcp__hyperworks__run_hmbatch_script (import + partition)
-  → mcp__hyperworks__run_hmbatch_script (mesh)
-  → mcp__qilan_solve__validate_kfile    (.key 文件校验)
-  → mcp__qilan_solve__health_gate       (网格质量门控)
-  → mcp__cae__lsdyna_solve              (求解)
-  → mcp__qilan_solve__read_d3plot       (读取结果)
-  → mcp__qilan_solve__render_deployment (生成 GIF)
-  → mcp__cae__generate_ppt_report       (生成报告)
-```
 
+每个 evidence 必须是真实工具刚生成的日志或原始报告，不要自行写一份 PASS 文本。应用检查文件、时效与结果，不接受只有自述的完成消息。
+
+网格门禁使用应用生成的 `mesh.gate.json`，它指向本次 `out/curtain_airbag.k`，同步本次网格尺寸、PID、tag 和分层；不能再运行指向历史 K 的原始门禁配置。
+
+| 阶段 | 必需 checks.name |
+| --- | --- |
+| mesh | strict_k、auto_gate、quality、partition_coverage |
+| solve | parity、damper、probe、normal_termination、health |
+| postprocess | four_views（evidence 指向 hv_render check 原始输出，unique md5: N / N，N≥4） |
+
+任何必需门禁 FAIL、WARN 或缺证据都应暂停并说明问题。若某报告仅输出中文，保留原始输出并附带实际工具退出码与报告解释，请维护人员适配验证器，不能伪造英文 PASS。
+真实文件、图片、动画展示在工作流侧栏，工具调用、思考与详细日志仍在对话中。
+
+## 软件缺失与错误
+
+- 导入/分区/网格缺 HyperMesh、后处理缺 HyperView、求解缺所选求解器或服务地址时暂停；界面引导至“设置 → 仿真软件”并定位路径字段，文件和参数会保留。
+- `fail` 必须说明真实工具错误与日志。补充参数用 `request_input`；执行失败后重试仍要用户确认当前表单。
+- 应用中断时阶段为 `interrupted`。求解重试要求用户先检查实际任务，避免重复计算。

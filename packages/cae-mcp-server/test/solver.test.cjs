@@ -70,6 +70,18 @@ test('local software keeps the existing process invocation and result parsing', 
   assert.equal(calls[0][0], CAE_CONFIG.lsdyna)
   assert.deepEqual(calls[0][1], [`i=${keyword}`, 'ncpu=4', 'memory=2000m'])
   assert.equal(calls[0][2].cwd, directory)
+  assert.ok(calls[0][2].timeoutMs >= 24 * 60 * 60 * 1000, 'multi-hour runs must not stop after one hour')
+})
+
+test('local nonzero solver exit is an error even when the final log has no error marker', async t => {
+  backend(t, {})
+  CAE_CONFIG.lsdyna = 'local-lsdyna.exe'
+  const directory = await mkdtemp(join(tmpdir(), 'cae-solver-error-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const keyword = join(directory, 'main.k')
+  await writeFile(keyword, '*KEYWORD\n*END\n')
+  t.mock.method(subprocess, 'runProcess', async () => ({ stdout: 'license unavailable', stderr: '', exitCode: 2 }))
+  await assert.rejects(solveLsDyna(SolveSchema.parse({ keyword_file: keyword })), /exit 2/)
 })
 
 test('invalid mode and missing executable fail instead of falling back to another backend', async t => {

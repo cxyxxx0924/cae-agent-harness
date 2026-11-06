@@ -21,6 +21,13 @@ const uvSha256 = '5d250c32d3604e28dbe18dc65c668ff628c53e00dde2c642576e831e4a60da
 const builderRequire = createRequire(require.resolve('electron-builder'))
 const packagerRequire = createRequire(builderRequire.resolve('app-builder-lib'))
 const { path7za } = packagerRequire('7zip-bin')
+const { SKILLS } = require('../../cae-workflow/fields.cjs')
+const workflowFiles = ['index.js', 'client.js', 'fields.cjs', 'state.cjs', 'policy.js']
+
+function skillAsset(source) {
+  return !source.split(/[\\/]/).some(part => ['__pycache__', '.venv', 'node_modules', '.git', 'datasets', 'dataset', '.env', 'cae-settings.json', 'config.local.yaml'].includes(part))
+    && (!extname(source) || ['.md', '.py', '.json', '.tcl', '.sh', '.png', '.svg', '.txt', '.slide'].includes(extname(source).toLowerCase()))
+}
 
 function run(command, args, cwd = projectRoot) {
   return new Promise((resolve, reject) => {
@@ -143,6 +150,16 @@ async function verifyDesktopUi(runtime) {
   }
 }
 
+async function verifyWorkflow(runtime) {
+  const directory = join(runtime, 'packages', 'cae-workflow')
+  const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+  assert.equal(manifest.name, '@cae/workflow')
+  assert(manifest.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), 'Workflow requires the native dsh sidebar')
+  for (const file of workflowFiles) assert((await stat(join(directory, file))).isFile(), `Missing workflow module: ${file}`)
+  for (const skill of Object.values(SKILLS)) assert((await stat(join(runtime, skill, 'SKILL.md'))).isFile(), `Missing packaged skill: ${skill}`)
+  assert((await stat(join(runtime, SKILLS.partition, 'scripts', 'tree_model_v2.json'))).isFile(), 'Missing partition model weights')
+}
+
 async function main() {
   const args = process.argv.slice(2).filter(arg => arg !== '--')
   if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
@@ -159,7 +176,7 @@ async function main() {
   await mkdir(runtimeRoot, { recursive: true })
   const manifest = JSON.parse(await readFile(join(shellRoot, 'package.json'), 'utf8'))
 
-  for (const file of ['package.json', 'pnpm-lock.yaml', 'packages/electron-shell/package.json', 'packages/cae-mcp-server/package.json', 'packages/cae-ui/package.json']) {
+  for (const file of ['package.json', 'pnpm-lock.yaml', 'packages/electron-shell/package.json', 'packages/cae-mcp-server/package.json', 'packages/cae-ui/package.json', 'packages/cae-workflow/package.json']) {
     await copyProjectFile(file)
   }
   // pnpm resolves optional native packages for the host platform unless the
@@ -207,6 +224,8 @@ async function main() {
     'skills', 'packages/cae-mcp-server/dist',
     'packages/cae-ui/index.js', 'packages/cae-ui/client.js', 'packages/cae-ui/llm.js',
   ]) await copyProjectFile(file)
+  for (const file of workflowFiles) await copyProjectFile(`packages/cae-workflow/${file}`)
+  for (const skill of Object.values(SKILLS)) await cp(join(projectRoot, skill), join(runtimeRoot, skill), { recursive: true, filter: skillAsset })
   for (const project of ['hyperworks-mcp', 'qilan-solve']) {
     for (const file of ['pyproject.toml', 'uv.lock', 'src']) await copyProjectFile(`packages/${project}/${file}`)
   }
@@ -238,6 +257,7 @@ async function main() {
   await removeBinLinks(runtimeRoot)
   await verifyTree(runtimeRoot)
   await verifyDesktopUi(runtimeRoot)
+  await verifyWorkflow(runtimeRoot)
   for (const file of [
     'node/node.exe', 'uv/uv.exe',
     'node_modules/node-addon-require-builtin-win32-x64-msvc/prebuilt/win32-x64-msvc-napi-v9.node',
@@ -279,6 +299,6 @@ async function main() {
   }
 }
 
-module.exports = { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi }
+module.exports = { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi, verifyWorkflow, skillAsset }
 
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1 })

@@ -4,7 +4,7 @@ import { createInterface } from 'node:readline'
 import { z } from 'zod'
 import { CAE_CONFIG } from '../config'
 import { runProcess, tailLog } from '../subprocess'
-import { solveViaService, usesSolverService } from '../solver-service'
+import { solveViaService, usesSolverService, SOLVE_TIMEOUT_MS } from '../solver-service'
 
 export const SolveSchema = z.object({
   keyword_file: z.string().describe('Absolute path to the LS-DYNA .key or .k file. In service mode, the path and all INCLUDE files must be accessible to the solver service.'),
@@ -28,8 +28,8 @@ async function extractTerminationTime(keyFile: string): Promise<number | null> {
   return null
 }
 
-export async function solveLsDyna(args: SolveArgs): Promise<string> {
-  if (usesSolverService(CAE_CONFIG.solver)) return solveViaService(args, CAE_CONFIG.solver)
+export async function solveLsDyna(args: SolveArgs, signal?: AbortSignal): Promise<string> {
+  if (usesSolverService(CAE_CONFIG.solver)) return solveViaService(args, CAE_CONFIG.solver, signal)
   if (!CAE_CONFIG.lsdyna) throw new Error('尚未配置本地求解器，请在“设置 → 仿真软件”选择软件或求解服务。')
   if (!existsSync(args.keyword_file)) {
     throw new Error(`Keyword file not found: ${args.keyword_file}`)
@@ -39,10 +39,10 @@ export async function solveLsDyna(args: SolveArgs): Promise<string> {
   const result = await runProcess(
     CAE_CONFIG.lsdyna,
     [`i=${args.keyword_file}`, `ncpu=${args.ncpu}`, `memory=${args.memory}`],
-    { cwd: outDir, timeoutMs: 3_600_000 },
+    { cwd: outDir, timeoutMs: SOLVE_TIMEOUT_MS, signal },
   )
   const log = tailLog(result.stdout + result.stderr)
-  if (log.includes('E r r o r') || log.includes('*** Error')) {
+  if (result.exitCode !== 0 || log.includes('E r r o r') || log.includes('*** Error')) {
     throw new Error(`LS-DYNA solver error (exit ${result.exitCode})\n${log}`)
   }
   const stats: Record<string, unknown> = {}

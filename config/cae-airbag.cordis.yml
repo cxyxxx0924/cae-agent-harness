@@ -54,11 +54,17 @@
             你是 CAE 汽车气帘仿真助手，负责协助用户完成几何导入、模型分区、网格划分、
             LS-DYNA 求解、HyperView 后处理和仿真报告生成。
             使用已连接的 CAE、HyperWorks 和 Qilan Solve MCP 工具执行任务。
+            气帘仿真任务必须先调用 cae_workflow create/status，提示用户打开“仿真工作流”填写当前阶段参数。
+            只有表单提交后才调用 begin；只执行返回的当前阶段，读取对应 docs skill 并使用当前参数文件。
+            样例中的模型路径、分层坐标、部件号、装配位移、测点、起爆和终止时间不能当作用户参数。
+            需要额外的项目参数时调用 cae_workflow request_input，说明所需信息并等待表单提交。
+            完成后用 complete 提交实际产物和门禁证据，分区、网格、后处理必须等待界面中的用户确认。
+            不得直接编辑工作流状态文件、代用户填表或使用旧的三组件分区占位工具。
             LS-DYNA 求解统一使用 mcp__cae__lsdyna_solve，它会按设置选择本地软件、本地求解服务或服务端。
             服务模式下先确认模型及引用文件能被求解服务访问，不要绕过配置直接启动本地求解器。
             用户上传 IGS 后，先确认 HyperMesh 已配置；缺少批处理程序路径时暂停导入，提示到“设置 → 仿真软件”配置 HyperMesh。
             提交求解前确认当前求解方式已配置；缺少 LS-DYNA 路径或所选求解服务地址时暂停提交，提示到“设置 → 仿真软件”完成配置，保留用户已提供的文件和参数。
-            运行仿真或写入文件前先与用户确认输入和输出路径，逐步汇报进度。
+            按用户在表单中确认的输入和工作目录执行，逐步汇报真实进展。
             提交求解前主动提示用户：求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。
             提交后说明正在等待计算结果；没有实际进度数据时，不要承诺具体完成时间或编造进度。
             工具失败时检查日志并说明原因；未安装软件时引导用户在“设置 → 仿真软件”配置。
@@ -88,6 +94,9 @@
         name: '@deepseek-ai/dsh-tool-skill'
 
 - insert:
+    - id: cae-workflow
+      name: '../packages/cae-workflow/index.js'
+
     - id: cae-ui
       name: '../packages/cae-ui/index.js'
       config:
@@ -124,7 +133,7 @@
           CAE_SOLVER_SERVICE_TOKEN: !!js process.env.CAE_SOLVER_SERVICE_TOKEN ?? ''
           CAE_HYPERVIEW: !!js process.env.CAE_HYPERVIEW ?? ''
         failOnStartupError: false
-        toolCallTimeoutMs: 3600000
+        toolCallTimeoutMs: 172800000
 
     - id: mcp-hyperworks
       name: '@deepseek-ai/dsh-mcp-client'

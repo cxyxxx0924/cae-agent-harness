@@ -3,7 +3,7 @@ const { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } = require('nod
 const { test } = require('node:test')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
-const { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi } = require('../scripts/package-windows.cjs')
+const { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi, verifyWorkflow, skillAsset } = require('../scripts/package-windows.cjs')
 
 test('runs a JavaScript pnpm entrypoint through the current Node executable', () => {
   const invocation = pnpmInvocation('/opt/pnpm/pnpm.cjs')
@@ -69,4 +69,10 @@ test('Windows packaging rejects a desktop UI without its model host or settings 
   manifest.dsh.client.inject = ['@deepseek-ai/dsh-client-ui-settings']
   await writeFile(manifestPath, JSON.stringify(manifest))
   await assert.rejects(verifyDesktopUi(root), /startup dependency/)
+})
+
+test('Windows runtime includes the workflow and all canonical skills while excluding archives, logs and datasets', async () => {
+  await verifyWorkflow(join(__dirname, '../../..'))
+  for (const file of ['docs/.env', 'docs/model.iges', 'docs/skill.rar', 'docs/run.log', 'docs/.venv/settings.json', 'docs/__pycache__/x.pyc', 'docs/datasets/training.json']) assert.equal(skillAsset(file), false, file)
+  for (const file of ['docs/skill/SKILL.md', 'docs/skill/scripts/tree_model_v2.json', 'docs/skill/scripts/run_case.sh', 'docs/skill/scripts/t00_import_iges.tcl']) assert.equal(skillAsset(file), true, file)
 })

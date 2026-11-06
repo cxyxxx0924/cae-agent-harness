@@ -14,13 +14,16 @@ export const GenerateReportSchema = z.object({
     element_count: z.number().optional(),
     node_count: z.number().optional(),
     element_size: z.number().optional(),
+    element_type: z.string().optional(),
+    quality_summary: z.string().optional(),
   }).optional().describe('Mesh statistics'),
   solver_info: z.object({
-    termination_time: z.number().optional(),
-    last_sim_time: z.number().optional(),
+    termination_time: z.number().optional().describe('Termination time in ms'),
+    last_sim_time: z.number().optional().describe('Last simulation time in ms'),
     ncpu: z.number().optional(),
     status: z.string().optional(),
   }).optional().describe('Solver run information'),
+  evidence_summary: z.string().optional().describe('Actual evidence sources and missing assessment inputs; this report is a process summary, not a regulatory verdict.'),
   output_ppt: z.string().optional().describe('Output PPT file path; defaults to <workdir>/report.pptx'),
 })
 export type GenerateReportArgs = z.infer<typeof GenerateReportSchema>
@@ -63,8 +66,8 @@ export async function generateReport(args: GenerateReportArgs): Promise<string> 
   })
   const steps = [
     { step: '1', title: '几何导入', desc: '导入 IGS/IGES 格式的气帘几何模型' },
-    { step: '2', title: '模型分区', desc: '识别气囊织物、充气器侧板、泄气孔等区域' },
-    { step: '3', title: '网格划分', desc: '四边形壳单元网格，尺寸 5mm，质量检查' },
+    { step: '2', title: '模型分区', desc: 'BELT / CAVITY / SEAM / TETHER 四分区' },
+    { step: '3', title: '网格划分', desc: '按当前项目参数生成网格并执行质量门禁' },
     { step: '4', title: 'LS-DYNA 求解', desc: '显式动力学仿真，气袋充气展开分析' },
     { step: '5', title: '结果后处理', desc: 'HyperView 导出位移/应力云图动画 GIF' },
     { step: '6', title: '报告生成', desc: '自动生成 PowerPoint 分析报告' },
@@ -87,8 +90,9 @@ export async function generateReport(args: GenerateReportArgs): Promise<string> 
   if (args.mesh_info?.element_count !== undefined) meshRows.push(['单元数量', args.mesh_info.element_count.toLocaleString()])
   if (args.mesh_info?.node_count !== undefined) meshRows.push(['节点数量', args.mesh_info.node_count.toLocaleString()])
   if (args.mesh_info?.element_size !== undefined) meshRows.push(['目标网格尺寸', `${args.mesh_info.element_size} mm`])
-  meshRows.push(['单元类型', '四边形壳单元 (SHELL163)'])
-  meshRows.push(['网格质量标准', '翘曲角 ≤5°，长宽比 ≤5'])
+  if (args.mesh_info?.element_type) meshRows.push(['单元类型', args.mesh_info.element_type])
+  if (args.mesh_info?.quality_summary) meshRows.push(['实际质量检查', args.mesh_info.quality_summary])
+  if (meshRows.length === 1) meshRows.push(['网格数据', '未提供，需查看实际门禁记录'])
   meshSlide.addTable(meshRows as any, {
     x: 1.5, y: 1.4, w: 10,
     colW: [5, 5],
@@ -102,10 +106,11 @@ export async function generateReport(args: GenerateReportArgs): Promise<string> 
     x: 0.5, y: 0.3, w: 12, h: 0.8, fontSize: 28, bold: true, color: BRAND_COLOR,
   })
   const solverRows: string[][] = [['参数', '数值']]
-  if (args.solver_info?.termination_time !== undefined) solverRows.push(['仿真结束时间', `${args.solver_info.termination_time} s`])
-  if (args.solver_info?.last_sim_time !== undefined) solverRows.push(['最终仿真时间', `${args.solver_info.last_sim_time.toFixed(4)} s`])
+  if (args.solver_info?.termination_time !== undefined) solverRows.push(['仿真结束时间', `${args.solver_info.termination_time} ms`])
+  if (args.solver_info?.last_sim_time !== undefined) solverRows.push(['最终仿真时间', `${args.solver_info.last_sim_time.toFixed(4)} ms`])
   if (args.solver_info?.ncpu !== undefined) solverRows.push(['CPU 核数', `${args.solver_info.ncpu}`])
   if (args.solver_info?.status !== undefined) solverRows.push(['求解状态', args.solver_info.status === 'ok' ? '正常完成' : args.solver_info.status])
+  if (solverRows.length === 1) solverRows.push(['求解数据', '未提供，需查看实际求解记录'])
   solverSlide.addTable(solverRows as any, {
     x: 1.5, y: 1.4, w: 10,
     colW: [5, 5],
@@ -121,10 +126,13 @@ export async function generateReport(args: GenerateReportArgs): Promise<string> 
     })
     gifSlide.addImage({
       path: args.gif_path,
-      x: 1.5, y: 1.2, w: 10, h: 5.6,
+      x: 1.5, y: 1.2, w: 10, h: 5.6, sizing: { type: 'contain', w: 10, h: 5.6 },
     })
   }
-  // Slide 6 — Conclusion
+  const evidenceSlide = pptx.addSlide()
+  evidenceSlide.addText('证据与评判范围', { x: 0.5, y: 0.3, w: 12, h: 0.8, fontSize: 28, bold: true, color: BRAND_COLOR })
+  evidenceSlide.addText(args.evidence_summary || '本报告为仿真过程摘要。未提供法规评价所需的完整测点、坐标对齐和动态保护证据，不能据此判定法规合格。', { x: 0.7, y: 1.5, w: 11.8, h: 4.8, fontSize: 16, color: '404040', breakLine: false, fit: 'shrink' })
+  // Closing slide.
   const endSlide = pptx.addSlide()
   endSlide.background = { fill: BRAND_COLOR }
   endSlide.addText('Thank You', {

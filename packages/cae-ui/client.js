@@ -10,6 +10,15 @@ window.__ModuleLoader__.load({
       { id: 'workdir', label: '仿真工作目录', kind: 'directory', placeholder: 'D:\\cae_projects\\airbag', hint: '存放几何、网格、求解结果和报告的默认目录。' },
     ]
     const element = createElement
+    let requestedSimulationField = ''
+    const focusSimulationField = () => {
+      if (!requestedSimulationField) return
+      const input = document.getElementById(`cae-${requestedSimulationField}`)
+      if (!input) return
+      input.focus()
+      input.scrollIntoView({ block: 'center' })
+      requestedSimulationField = ''
+    }
 
     function CacheSettings() {
       const api = window.caeDesktop
@@ -210,6 +219,7 @@ window.__ModuleLoader__.load({
       const [message, setMessage] = useState('')
       const [failed, setFailed] = useState(false)
       const [serviceCheck, setServiceCheck] = useState(null)
+      useEffect(() => { if (values) focusSimulationField() }, [values])
 
       useEffect(() => {
         if (!api) return
@@ -435,6 +445,15 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'conversation'],
       apply(ctx) {
+        if (window.addEventListener) ctx.effect(() => {
+          const openSimulation = event => {
+            requestedSimulationField = event.detail?.field || 'hmbatch'
+            ctx.slots.entries('sidebar.settings')[0]?.store?.create().actions.openSection('cae-simulation')
+            focusSimulationField()
+          }
+          window.addEventListener('cae:open-simulation-settings', openSimulation)
+          return () => window.removeEventListener('cae:open-simulation-settings', openSimulation)
+        })
         ctx.effect(() => {
           const style = document.createElement('style')
           style.textContent = css

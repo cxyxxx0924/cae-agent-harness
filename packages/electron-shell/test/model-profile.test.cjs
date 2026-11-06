@@ -71,6 +71,7 @@ async function startModelRuntime(t, model, models = [], configured = true) {
     CAE_MODELS: JSON.stringify(models),
     CAE_DESKTOP: '1',
     CAE_MODELS_CONFIGURED: configured ? '1' : '0',
+    CAE_WORKFLOW_DIR: join(temporaryHome, 'workflows'),
     HYPERWORKS_HOME: '',
     CAE_LSDYNA: '',
   }
@@ -100,6 +101,13 @@ test('an unconfigured desktop runtime starts with an empty catalog and can brows
   const bundle = await ctx.clientModules.fetchBundle({ method: 'GET', url: `http://localhost/${client.url}` })
   assert.equal(bundle.status, 200)
   assert.match(await bundle.text(), /cae-models-title/)
+  assert.ok(ctx.tools.get('cae_workflow'), 'workflow host must activate successfully')
+  const workflowClient = ctx.clientModules.graph().entries.find(entry => entry.id === '@cae/workflow')
+  assert.ok(workflowClient, 'workflow must be part of the native client boot graph')
+  assert.ok(workflowClient.inject.includes('@deepseek-ai/dsh-client-ui-sidebar-right'))
+  const workflowBundle = await ctx.clientModules.fetchBundle({ method: 'GET', url: `http://localhost/${workflowClient.url}` })
+  assert.equal(workflowBundle.status, 200)
+  assert.match(await workflowBundle.text(), /sidebar.right.pane.tab/)
   const catalog = await ctx.sessionController.modelCatalog()
   assert.deepEqual(catalog.groups, [])
   assert.deepEqual(catalog.failures, [])

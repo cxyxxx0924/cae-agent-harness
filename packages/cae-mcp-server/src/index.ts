@@ -4,7 +4,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { z } from 'zod'
+import { zodToJsonSchema } from './schema'
 import { importIgs, ImportIgsSchema, partitionAirbag, PartitionAirbagSchema, generateMesh, GenerateMeshSchema } from './tools/hypermesh'
 import { solveLsDyna, SolveSchema } from './tools/lsdyna'
 import { exportGif, ExportGifSchema } from './tools/hyperview'
@@ -19,7 +19,7 @@ const server = new Server(
   },
 )
 
-const TOOLS = [
+const TOOLS: { name: string; description: string; inputSchema: Record<string, unknown>; handler: (args: unknown, signal?: AbortSignal) => Promise<string> }[] = [
   {
     name: 'hypermesh_import_igs',
     description: 'Import an IGS or IGES geometry file into HyperMesh via hmbatch.exe. Returns the path of the created .hm model file.',
@@ -42,7 +42,7 @@ const TOOLS = [
     name: 'lsdyna_solve',
     description: 'Run LS-DYNA using the configured backend: local software, local solver service, or server. In service mode, input and output paths belong to the solver service filesystem. Returns solver status, backend, progress, and output paths.',
     inputSchema: zodToJsonSchema(SolveSchema),
-    handler: (args: unknown) => solveLsDyna(SolveSchema.parse(args)),
+    handler: (args: unknown, signal?: AbortSignal) => solveLsDyna(SolveSchema.parse(args), signal),
   },
   {
     name: 'hyperview_export_gif',
@@ -56,45 +56,19 @@ const TOOLS = [
     inputSchema: zodToJsonSchema(GenerateReportSchema),
     handler: (args: unknown) => generateReport(GenerateReportSchema.parse(args)),
   },
-] as const
-
-function zodToJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
-  const shape = (schema as z.ZodObject<z.ZodRawShape>).shape
-  const properties: Record<string, unknown> = {}
-  const required: string[] = []
-  for (const [key, field] of Object.entries(shape)) {
-    const f = field as z.ZodTypeAny
-    const inner = f instanceof z.ZodDefault ? f._def.innerType : f
-    const isOptional = f instanceof z.ZodOptional || f instanceof z.ZodDefault
-    let type = 'string'
-    if (inner instanceof z.ZodNumber) type = 'number'
-    else if (inner instanceof z.ZodBoolean) type = 'boolean'
-    else if (inner instanceof z.ZodEnum) {
-      properties[key] = { type: 'string', enum: inner.options, description: (f as z.ZodTypeAny)._def.description }
-      if (!isOptional) required.push(key)
-      continue
-    } else if (inner instanceof z.ZodObject) {
-      properties[key] = { type: 'object', description: (f as z.ZodTypeAny)._def.description }
-      if (!isOptional) required.push(key)
-      continue
-    }
-    properties[key] = { type, description: f._def.description }
-    if (!isOptional) required.push(key)
-  }
-  return { type: 'object', properties, required }
-}
+]
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
 }))
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   const tool = TOOLS.find(t => t.name === request.params.name)
   if (!tool) {
     return { content: [{ type: 'text', text: `Unknown tool: ${request.params.name}` }], isError: true }
   }
   try {
-    const result = await tool.handler(request.params.arguments ?? {})
+    const result = await tool.handler(request.params.arguments ?? {}, extra.signal)
     return { content: [{ type: 'text', text: result }] }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

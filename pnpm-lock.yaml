@@ -42,6 +42,8 @@ importers:
 
   packages/cae-ui: {}
 
+  packages/cae-workflow: {}
+
   packages/electron-shell:
     dependencies:
       '@deepseek-ai/dsh':

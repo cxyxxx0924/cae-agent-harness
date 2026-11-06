@@ -10,6 +10,7 @@ import { clearDesktopCache } from './desktop-cache'
 import { loadSettings, saveSettings, saveSimulationSettings, type CaeSettings } from './store'
 import { discoverModels, modelEnvironment, parseModelConfiguration, testModels } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
+import { workflowArtifact, workflowPreview, workflowField } from './workflow'
 import {
   preparePythonMcpEnvironments,
   pythonMcpFeatureEnvironment,
@@ -29,6 +30,8 @@ function resourcePath(...parts: string[]): string {
     ? join(process.resourcesPath, 'runtime', ...parts)
     : resolve(__dirname, '../../..', ...parts)
 }
+
+const { WorkflowStore, STAGES, missingSoftware }: typeof import('../../cae-workflow/state.cjs') = require(resourcePath('packages', 'cae-workflow', 'state.cjs'))
 
 function dshBin(): string {
   const candidates = [
@@ -61,6 +64,7 @@ let mainWindow:    BrowserWindow | null = null
 let launchingDsh = false
 let quitting = false
 let runtimeLog: RuntimeLog
+const workflowStore = () => new WorkflowStore(join(app.getPath('userData'), 'workflows'))
 
 // ── dsh lifecycle ─────────────────────────────────────────────────────────
 function spawnDsh(settings: CaeSettings): ChildProcess {
@@ -77,6 +81,8 @@ function spawnDsh(settings: CaeSettings): ChildProcess {
     DSH_PORT:           String(DSH_PORT),
     DSH_NO_OPEN_BROWSER: '1',
     CAE_DESKTOP:        '1',
+    CAE_WORKFLOW_DIR:   join(app.getPath('userData'), 'workflows'),
+    CAE_PROJECT_ROOT:   projectRoot(),
     // Saved desktop settings take precedence over the launch environment.
     ...modelEnv,
     ...simulationEnv,
@@ -245,6 +251,7 @@ function registerIpc(): void {
   ipcMain.handle('models:save', async (event, raw: unknown) => {
     requireMainWindow(event)
     if (dshRestart || cacheClear) throw new Error('应用正在刷新或重启，请稍后重试。')
+    if (workflowStore().hasRunning()) throw new Error('仿真正在执行，保存模型配置会重启后台。请等当前阶段结束后保存。')
     const settings = parseModelConfiguration(modelInput(raw))
     saveSettings({ ...loadSettings(), ...settings })
     await restartDsh()
@@ -269,6 +276,7 @@ function registerIpc(): void {
   ipcMain.handle('simulation:save', async (event, raw: unknown) => {
     requireMainWindow(event)
     if (dshRestart || cacheClear) throw new Error('应用正在刷新或重启，请稍后重试。')
+    if (workflowStore().hasRunning()) throw new Error('仿真正在执行，保存软件配置会重启后台。请等当前阶段结束后保存。')
     saveSimulationSettings(raw)
     await restartDsh()
   })
@@ -304,6 +312,48 @@ function registerIpc(): void {
   ipcMain.handle('simulation:check-service', (event, raw: unknown) => {
     requireMainWindow(event)
     return checkSolverService(raw)
+  })
+
+  ipcMain.handle('workflow:load', (event, sessionId: string) => {
+    requireMainWindow(event)
+    const state = workflowStore().load(sessionId)
+    const settings = loadSettings()
+    return { state, stages: STAGES, configuration: state ? missingSoftware(STAGES[state.current], settings) : null, workdir: settings.workdir }
+  })
+  ipcMain.handle('workflow:create', (event, sessionId: string) => {
+    requireMainWindow(event)
+    return workflowStore().create(sessionId)
+  })
+  ipcMain.handle('workflow:submit', (event, sessionId: string, revision: number, values: unknown) => {
+    requireMainWindow(event)
+    return workflowStore().submit(sessionId, revision, values, loadSettings())
+  })
+  ipcMain.handle('workflow:confirm', (event, sessionId: string, revision: number) => {
+    requireMainWindow(event)
+    return workflowStore().confirm(sessionId, revision)
+  })
+  ipcMain.handle('workflow:adjust', (event, sessionId: string, revision: number, feedback: unknown) => {
+    requireMainWindow(event)
+    return workflowStore().adjust(sessionId, revision, feedback)
+  })
+  ipcMain.handle('workflow:browse', async (event, sessionId: string, fieldId: string) => {
+    requireMainWindow(event)
+    const field = workflowField(workflowStore(), sessionId, fieldId, STAGES)
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: `选择${field.label}`,
+      properties: field.type === 'directory' ? ['openDirectory', 'createDirectory'] : ['openFile'],
+      ...(field.extensions ? { filters: [{ name: field.label, extensions: field.extensions }] } : {}),
+    })
+    return result.canceled ? null : result.filePaths[0]
+  })
+  ipcMain.handle('workflow:open', async (event, sessionId: string, file: unknown) => {
+    requireMainWindow(event)
+    const error = await shell.openPath(workflowArtifact(workflowStore(), sessionId, file))
+    if (error) throw new Error(error)
+  })
+  ipcMain.handle('workflow:preview', (event, sessionId: string, file: unknown) => {
+    requireMainWindow(event)
+    return workflowPreview(workflowStore(), sessionId, file)
   })
 }
 

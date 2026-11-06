@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import type { SolveArgs } from './tools/lsdyna'
 
+export const SOLVE_TIMEOUT_MS = 48 * 60 * 60 * 1000
+
 export interface SolverBackend {
   location: string
   localType: string
@@ -28,7 +30,7 @@ export function usesSolverService(config: SolverBackend): boolean {
   return config.location === 'server' || config.localType === 'service'
 }
 
-export async function solveViaService(args: SolveArgs, config: SolverBackend): Promise<string> {
+export async function solveViaService(args: SolveArgs, config: SolverBackend, signal?: AbortSignal): Promise<string> {
   let endpoint: URL
   try {
     if (!/^https?:\/\//i.test(config.serviceUrl) || /\s/.test(config.serviceUrl)) throw new Error('Invalid URL')
@@ -48,7 +50,7 @@ export async function solveViaService(args: SolveArgs, config: SolverBackend): P
         ...(config.serviceToken ? { Authorization: `Bearer ${config.serviceToken}` } : {}),
       },
       body: JSON.stringify({ solver: 'lsdyna', ...args }),
-      signal: AbortSignal.timeout(3_600_000),
+      signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(SOLVE_TIMEOUT_MS)]) : AbortSignal.timeout(SOLVE_TIMEOUT_MS),
       redirect: 'error',
     })
   } catch {
