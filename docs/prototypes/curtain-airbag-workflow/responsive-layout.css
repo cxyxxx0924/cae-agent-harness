@@ -1,0 +1,45 @@
+.compact-settings { display:none; }
+
+@media (min-width:1201px) and (max-width:1280px) {
+  .app { grid-template-columns:220px minmax(390px,1fr) minmax(500px,.9fr); }
+  .left { padding-left:10px;padding-right:10px; }
+  .deliverable-area { grid-template-columns:minmax(0,1fr) 138px;gap:7px;padding-left:9px;padding-right:9px; }
+  .wf-steps { padding-left:8px;padding-right:8px;gap:4px; }
+  .wf-step { padding:5px 4px;gap:4px; }
+  .wf-label { font-size:8px; }
+  .snapshot-nav + .window .app { grid-template-columns:185px minmax(330px,.8fr) minmax(490px,1.2fr); }
+  .snapshot-nav + .window .chat-view { padding-left:18px;padding-right:18px; }
+}
+
+@media (max-width:1200px) {
+  body { height:100vh;height:100dvh;min-height:0;overflow:hidden; }
+  .app { grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr); }
+  .left,.right { display:none; }
+  .center { min-height:0;overflow:hidden;border-right:0; }
+  .center-session { overflow:hidden; }
+  #centerSessionTitle { overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+  .session-status,.center-toolbar { flex-shrink:0; }
+  .center-toolbar .top-icon { display:none; }
+  .center-toolbar .compact-settings { display:grid; }
+  .home-view { overflow:auto; }
+  .chat-view { width:100%;max-width:770px;align-self:center; }
+  .chat-composer-wrap { flex:0 0 auto; }
+  .assistant-content { min-width:0;overflow-wrap:anywhere; }
+  .chat-message.user .bubble { overflow-wrap:anywhere; }
+  .snapshot-nav { flex:0 0 auto; }
+}
+
+@media (max-width:650px) {
+  .snapshot-nav { min-height:44px;gap:6px;padding:7px 8px; }
+  .snapshot-nav a { padding:5px 6px;font-size:10px; }
+  .snapshot-heading { flex-wrap:nowrap; }
+  .snapshot-heading strong { overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px; }
+  .snapshot-heading span { display:none; }
+  .center-top { padding:0 16px; }
+  .home-view { padding:20px 16px; }
+  .home-title { flex-wrap:wrap;justify-content:center;gap:8px;font-size:20px; }
+  .chat-view { padding:0 16px max(12px,env(safe-area-inset-bottom)); }
+  .chat-scroll { padding:14px 0; }
+  .chat-message { margin-bottom:15px; }
+  .composer-tools .mode-pill { display:none; }
+}
