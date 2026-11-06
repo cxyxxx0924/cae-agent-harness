@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>IGS 上传完成 · CAE 气帘工作流</title>
+  <link rel="stylesheet" href="software-settings.css">
   <style>
     :root {
       color-scheme: light;
@@ -334,7 +335,7 @@
         <div class="workspace-root"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3.5 6.5h7l2 2h8v10h-17z" fill="#edf3ff" stroke="#6592f3" stroke-width="1.3"/></svg><span>默认工作区</span></div>
         <div class="session-item" id="sessionItem"><span class="session-dot"></span><span id="sessionLabel">新会话</span></div>
         <div class="left-spacer"></div>
-        <div class="settings-link"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="m19 13.5 1.3 1-1.5 2.6-1.6-.5a7 7 0 0 1-1.5.9l-.3 1.7h-3l-.4-1.7a7 7 0 0 1-1.5-.9l-1.6.5-1.5-2.6 1.3-1a7 7 0 0 1 0-1.8l-1.3-1 1.5-2.6 1.6.5a7 7 0 0 1 1.5-.9l.4-1.7h3l.3 1.7a7 7 0 0 1 1.5.9l1.6-.5 1.5 2.6-1.3 1a7 7 0 0 1 0 1.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>设置</span></div>
+        <button type="button" class="settings-link" data-software-settings aria-label="仿真软件设置"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="m19 13.5 1.3 1-1.5 2.6-1.6-.5a7 7 0 0 1-1.5.9l-.3 1.7h-3l-.4-1.7a7 7 0 0 1-1.5-.9l-1.6.5-1.5-2.6 1.3-1a7 7 0 0 1 0-1.8l-1.3-1 1.5-2.6 1.6.5a7 7 0 0 1 1.5-.9l.4-1.7h3l.3 1.7a7 7 0 0 1 1.5.9l1.6-.5 1.5 2.6-1.3 1a7 7 0 0 1 0 1.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>设置</span></button>
       </aside>
 
       <main class="center">
@@ -365,7 +366,7 @@
       </main>
 
       <aside class="right">
-        <div class="right-header"><div class="right-title" id="rightTitle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.4"/><path d="m14.8 9.2-2.1 5.6-3.5 1.5 1.5-3.5z" fill="currentColor" opacity=".65"/></svg><span>开始</span></div><div class="right-tools"><button class="top-icon" title="停靠布局"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5zM9 4v16" stroke="currentColor" stroke-width="1.5"/></svg></button><button class="top-icon" title="全屏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="top-icon" title="侧栏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4zM15 5v14" stroke="currentColor" stroke-width="1.5"/></svg></button></div></div>
+        <div class="right-header"><div class="right-title" id="rightTitle"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.4"/><path d="m14.8 9.2-2.1 5.6-3.5 1.5 1.5-3.5z" fill="currentColor" opacity=".65"/></svg><span>开始</span></div><div class="right-tools"><button class="top-icon" title="停靠布局"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 4h14v16H5zM9 4v16" stroke="currentColor" stroke-width="1.5"/></svg></button><button class="top-icon" title="全屏"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="top-icon" data-software-settings title="仿真软件设置" aria-label="仿真软件设置"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/><path d="m19 13.5 1.3 1-1.5 2.6-1.6-.5-1.5.9-.3 1.7h-3l-.4-1.7-1.5-.9-1.6.5-1.5-2.6 1.3-1v-1.8l-1.3-1 1.5-2.6 1.6.5 1.5-.9.4-1.7h3l.3 1.7 1.5.9 1.6-.5 1.5 2.6-1.3 1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></button></div></div>
 
         <section class="start-panel" id="startPanel">
           <svg class="start-compass" viewBox="0 0 48 48" fill="none" aria-hidden="true"><circle cx="24" cy="24" r="20.5" stroke="currentColor" stroke-width="3"/><path d="m31 16-5.5 13-9.5 4.5 4.5-9.5L31 16Z" fill="currentColor" opacity=".75"/></svg>
@@ -414,6 +415,7 @@
   <div class="toast" id="toast" role="status"></div>
   <div class="modal-bg" id="adjustModal" role="dialog" aria-modal="true" aria-labelledby="adjustTitle"><div class="modal"><div class="modal-head"><span id="adjustTitle">请求调整分区</span><button class="top-icon" id="closeAdjust" title="关闭"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="modal-body"><p>指出需要移动或重新识别的曲线区域。</p><textarea id="adjustText" placeholder="例如：气帘右端的 3 条竖线应归入拉带区。"></textarea></div><div class="modal-footer"><button class="action-btn" id="cancelAdjust">取消</button><button class="action-btn primary" id="submitAdjust">重新识别</button></div></div></div>
 
+  <script src="software-settings.js"></script>
   <script>
     const steps = [
       {name:'上传 IGS', short:'上传 IGS', actionName:'输入几何', description:'支持 .igs / .iges 格式', tool:'文件输入', file:'CAB02_head_curtain.igs'},
@@ -524,7 +526,15 @@
       const tick=now=>{const p=Math.min(1,(now-start)/duration);$('runFill').style.width=`${Math.floor(p*100)}%`;$('runPercent').textContent=`${Math.floor(p*100)}%`;if(p<1)requestAnimationFrame(tick);else{state.running=false;state.runKind='';state.status[i]=doneStatus;log(`${steps[i].name}完成`,'success',detail);renderWorkflow();if(then)then()}};
       requestAnimationFrame(tick);
     }
+    function requireSoftware(kind){
+      if(window.caeWorkflowSettings.require(kind))return true;
+      const name=kind==='hypermesh'?'HyperMesh':'求解器';
+      $('chatStatusCopy').textContent=`尚未配置${name}，请先在“设置 → 仿真软件”完成配置。已选文件和当前流程会保留。`;
+      appendAssistant(`${name}配置尚未完成，已打开仿真软件设置。配置保存后，请继续当前步骤。`);
+      return false;
+    }
     function startPartition(){
+      if(!requireSoftware('hypermesh'))return;
       simulate(0,'upload',1200,'done','IGES 文件读取 · 坐标与曲线检查',()=>{
         file('IGS',state.igs,'输入几何 · 已读取');
         simulate(1,'partition',3300,'review','四功能区识别 · HyperMesh 截图已更新',()=>{
@@ -535,6 +545,7 @@
     function handleAction(action){
       if(action==='start-partition'){if(!state.igs){$('igsInput').click();return}startPartition()}
       if(action==='approve-partition'){
+        if(!requireSoftware('hypermesh'))return;
         state.status[1]='done';log('用户确认分区结果','success','继续进入网格生成');file('PNG','partition_preview.png','分区确认截图');
         simulate(2,'mesh',4700,'review','拓扑检查 · 5 mm 网格 · 拉带连接门禁',()=>{
           file('K',steps[2].file,'气帘网格 · 待确认');file('PNG','mesh_quality.png','网格质量截图');appendAssistant('网格已生成，质量与连接检查完成。请确认网格预览，再上传车身 K 文件进入组合求解。');
@@ -548,6 +559,7 @@
       if(action==='choose-body')$('bodyInput').click();
       if(action==='start-solve'){
         if(!state.body){toast('请先上传车身 K 文件');return}
+        if(!requireSoftware('solver'))return;
         $('chatStatusCopy').textContent='组合求解进行中，通常需要数小时，请耐心等待。';appendAssistant('已提交组合求解。求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源。可在右侧查看执行进度；本页进度为模拟演示。');
         state.status[3]='running';
         simulate(3,'solve',6700,'done','组合 main.key · LS-DYNA · d3plot 健康检查',()=>{
@@ -578,7 +590,7 @@
     $('newSession').addEventListener('click',()=>{if(state.active){toast('当前工作流已保留在右侧面板');return}toast('已进入新会话')});
     $('workspaceCard').addEventListener('click',()=>toast('工作区文件将在当前会话中打开'));
     $('uploadIgs').addEventListener('click',()=>$('igsInput').click());
-    $('igsInput').addEventListener('change',()=>chooseFile($('igsInput'),name=>{state.igs=name;$('previewEmpty').classList.add('hidden');$('viewportArt').classList.remove('hidden');$('previewSubtitle').textContent=name;$('viewToolbarRight').textContent='IGES LOADED';$('viewportFoot').textContent='CURVES · MM · XZ';file('IGS',name,'已选择 · 待导入');renderWorkflow();toast(`已选择 ${name}`)}));
+    $('igsInput').addEventListener('change',()=>chooseFile($('igsInput'),name=>{if(!state.active)activate();state.igs=name;$('previewEmpty').classList.add('hidden');$('viewportArt').classList.remove('hidden');$('previewSubtitle').textContent=name;$('viewToolbarRight').textContent='IGES LOADED';$('viewportFoot').textContent='CURVES · MM · XZ';file('IGS',name,'已选择 · 待导入');renderWorkflow();if(!requireSoftware('hypermesh'))return;toast(`已选择 ${name}`)}));
     $('bodyInput').addEventListener('change',()=>chooseFile($('bodyInput'),name=>{state.body=name;log('上传车身 K 文件','success',name);file('K',name,'车身模型 · 已就绪');renderWorkflow();toast('车身 K 文件已加入组合模型')}));
     $('chatSend').addEventListener('click',()=>{const text=$('chatMessage').value.trim();if(text){$('chatMessage').value='';sendWorkflowMessage(text)}});
     $('chatMessage').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('chatSend').click()}});
@@ -587,7 +599,15 @@
     $('openWorkspace').addEventListener('click',()=>toast('工作区文件列表已就绪'));
     $('closeAdjust').addEventListener('click',()=>$('adjustModal').classList.remove('show'));
     $('cancelAdjust').addEventListener('click',()=>$('adjustModal').classList.remove('show'));
-    $('submitAdjust').addEventListener('click',()=>{const text=$('adjustText').value.trim();if(!text){$('adjustText').focus();return}$('adjustModal').classList.remove('show');state.adjustments++;log('用户提交分区调整','success',text);$('adjustText').value='';simulate(1,'partition',2600,'review','应用调整意见 · 重跑分区 · 更新截图',()=>{file('HM',steps[1].file,'分区更新 v'+(3+state.adjustments));file('PNG','partition_preview_v'+(3+state.adjustments)+'.png','更新后的分区截图');appendAssistant('已按调整意见更新分区。请复核新版截图。')})});
+    $('submitAdjust').addEventListener('click',()=>{const text=$('adjustText').value.trim();if(!text){$('adjustText').focus();return}if(!requireSoftware('hypermesh'))return;$('adjustModal').classList.remove('show');state.adjustments++;log('用户提交分区调整','success',text);$('adjustText').value='';simulate(1,'partition',2600,'review','应用调整意见 · 重跑分区 · 更新截图',()=>{file('HM',steps[1].file,'分区更新 v'+(3+state.adjustments));file('PNG','partition_preview_v'+(3+state.adjustments)+'.png','更新后的分区截图');appendAssistant('已按调整意见更新分区。请复核新版截图。')})});
+    window.addEventListener('cae-workflow-settings-saved',event=>{
+      toast('仿真软件配置已保存，请继续当前操作');
+      if(state.active&&!state.running){
+        const next=event.detail.requirement==='solver'?'请再次点击“提交求解”。':'请继续当前步骤。';
+        const message='仿真软件配置已保存，已选文件和当前流程已保留。'+next;
+        $('chatStatusCopy').textContent=message;appendAssistant(message);
+      }
+    });
     renderFiles();renderTrace();
 
     const stagePreview = {"slug": "01-igs-uploaded", "title": "IGS 上传完成", "badge": "等待分区", "current": 0, "status": ["done", "ready", "locked", "locked", "locked", "locked"], "upto": 0, "user": "已上传气帘几何 CAB02_head_curtain.igs。", "message": "气帘 IGS 文件已读取，几何预览已就绪。下一步调用 HyperMesh MCP 识别功能区，并生成 .hm 模型与分区截图。", "results": [["输入文件", "CAB02_head_curtain.igs"], ["当前结果", "几何轮廓预览"], ["下一步", "开始 AI 分区"]], "hint": "IGS 文件已就绪。点击右侧“开始 AI 分区”继续。", "files": [{"type": "IGS", "name": "CAB02_head_curtain.igs", "meta": "输入几何 · 已读取"}], "traces": [{"text": "几何读取完成", "detail": "轮廓预览已生成", "kind": "success", "time": "10:31:00"}, {"text": "气帘 IGS 文件上传完成", "detail": "CAB02_head_curtain.igs", "kind": "success", "time": "10:30:00"}]};

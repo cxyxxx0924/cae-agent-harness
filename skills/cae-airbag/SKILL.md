@@ -15,6 +15,7 @@ IGS文件 → [导入] → model.hm → [分区] → model_partitioned.hm
 
 ## Step 1 — 导入 IGS/IGES 几何
 **工具**: `mcp__cae__hypermesh_import_igs`
+- 上传后先检查 HyperMesh 配置；未配置批处理程序路径时暂停导入，提示用户到“设置 → 仿真软件”配置。保留已选 IGS 文件，配置完成后继续当前步骤。
 - 请用户提供 IGS 文件的完整 Windows 路径（如 `D:\projects\airbag\cushion.igs`）
 - 默认比例因子 1.0（毫米模型无需缩放）
 - 输出 `model.hm` 保存到 `CAE_WORKDIR`
@@ -36,6 +37,7 @@ IGS文件 → [导入] → model.hm → [分区] → model_partitioned.hm
 
 ## Step 4 — LS-DYNA 显式求解
 **工具**: `mcp__cae__lsdyna_solve`
+- 提交前检查当前求解方式：本地软件需配置 LS-DYNA 路径，本地或服务端求解服务需配置对应服务地址。缺少配置时暂停提交，引导用户到“设置 → 仿真软件”完成配置，保留模型文件和求解参数。
 - 输入: `airbag.key`
 - 推荐: `ncpu=4`，`memory=2000m`（根据机器配置调整）
 - **提交前主动提示用户**：求解通常需要数小时，具体耗时取决于模型规模、网格密度和计算资源，请预留足够的计算时间。
