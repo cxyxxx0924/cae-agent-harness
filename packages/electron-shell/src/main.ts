@@ -6,6 +6,7 @@ import { existsSync, statSync } from 'node:fs'
 import { checkDshPort, waitForDsh } from './dsh-startup'
 import { RuntimeLog } from './runtime-log'
 import { EDIT_MENU, enableEditingContextMenu } from './native-editing'
+import { clearDesktopCache } from './desktop-cache'
 import { loadSettings, saveSettings, saveSimulationSettings, type CaeSettings } from './store'
 import { discoverModels, modelEnvironment, parseModelConfiguration, testModels } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
@@ -55,6 +56,7 @@ let dshProcess:    ChildProcess | null  = null
 let dshUrl: string | null = null
 let startupComplete = false
 let dshRestart: Promise<void> | null = null
+let cacheClear: Promise<boolean> | null = null
 let mainWindow:    BrowserWindow | null = null
 let launchingDsh = false
 let quitting = false
@@ -185,6 +187,35 @@ async function restartDsh(): Promise<void> {
   }
 }
 
+async function clearCacheAndReload(): Promise<boolean> {
+  if (cacheClear) return cacheClear
+  if (dshRestart || !dshUrl) throw new Error('后台服务正在启动或重启，请稍后重试。')
+  const win = mainWindow
+  if (!win || win.isDestroyed()) throw new Error('主窗口已关闭，请重新打开应用。')
+  cacheClear = (async () => {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      title: '清除缓存',
+      message: '清除界面缓存并刷新应用？',
+      detail: '用于修复设置入口缺失、界面显示异常等问题。未保存的输入会丢失；已保存的模型配置、仿真软件设置、对话记录和文件会保留。',
+      buttons: ['取消', '清除并刷新'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    if (response !== 1) return false
+    await clearDesktopCache(win.webContents.session, DSH_URL)
+    if (!win.isDestroyed()) await win.loadURL(dshUrl!)
+    runtimeLog.write('main', 'Desktop UI cache cleared; reloaded chat')
+    return true
+  })()
+  try {
+    return await cacheClear
+  } finally {
+    cacheClear = null
+  }
+}
+
 // ── IPC handlers ───────────────────────────────────────────────────────────
 function registerIpc(): void {
   function requireMainWindow(event: Electron.IpcMainInvokeEvent): void {
@@ -200,6 +231,11 @@ function registerIpc(): void {
     return { ...values, apiKey: values.apiKey === '' ? loadSettings().apiKey : values.apiKey }
   }
 
+  ipcMain.handle('desktop:clear-cache', event => {
+    requireMainWindow(event)
+    return clearCacheAndReload()
+  })
+
   ipcMain.handle('models:load', event => {
     requireMainWindow(event)
     const settings = loadSettings()
@@ -208,7 +244,7 @@ function registerIpc(): void {
 
   ipcMain.handle('models:save', async (event, raw: unknown) => {
     requireMainWindow(event)
-    if (dshRestart) throw new Error('后台服务正在重启，请稍后重试。')
+    if (dshRestart || cacheClear) throw new Error('应用正在刷新或重启，请稍后重试。')
     const settings = parseModelConfiguration(modelInput(raw))
     saveSettings({ ...loadSettings(), ...settings })
     await restartDsh()
@@ -232,7 +268,7 @@ function registerIpc(): void {
 
   ipcMain.handle('simulation:save', async (event, raw: unknown) => {
     requireMainWindow(event)
-    if (dshRestart) throw new Error('后台服务正在重启，请稍后重试。')
+    if (dshRestart || cacheClear) throw new Error('应用正在刷新或重启，请稍后重试。')
     saveSimulationSettings(raw)
     await restartDsh()
   })
@@ -322,6 +358,14 @@ function createMainWindow(): BrowserWindow {
       submenu: [
         { role: 'reload',       label: '刷新' },
         { role: 'forceReload',  label: '强制刷新' },
+        {
+          label: '清除缓存并刷新…',
+          click: () => {
+            void clearCacheAndReload().catch(error => {
+              dialog.showErrorBox('清除缓存失败', error instanceof Error ? error.message : '请重启应用后重试。')
+            })
+          },
+        },
         { type: 'separator' },
         { role: 'toggleDevTools', label: '开发者工具' },
         { type: 'separator' },
@@ -358,6 +402,11 @@ app.whenReady().then(async () => {
   try {
     launchingDsh = true
     const win = createMainWindow()
+    try {
+      await clearDesktopCache(win.webContents.session, DSH_URL)
+    } catch (error) {
+      runtimeLog.write('main', `Cannot clear desktop UI cache at startup: ${error instanceof Error ? error.message : String(error)}`)
+    }
     await startDsh()
     if (quitting) return
     if (!win.isDestroyed()) await win.loadURL(dshUrl!)

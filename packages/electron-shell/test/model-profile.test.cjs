@@ -93,6 +93,12 @@ async function startModelRuntime(t, model, models = [], configured = true) {
 
 test('an unconfigured desktop runtime starts with an empty catalog and can browse a blank session', { timeout: 30000 }, async t => {
   const { ctx, received } = await startModelRuntime(t, 'inherited-model', ['inherited-model'], false)
+  const client = ctx.clientModules.graph().entries.find(entry => entry.id === '@cae/dsh-ui')
+  assert.ok(client, 'desktop model settings must load even before a model is configured')
+  assert.ok(client.inject.includes('@deepseek-ai/dsh-client-ui-settings-general'))
+  const bundle = await ctx.clientModules.fetchBundle({ method: 'GET', url: `http://localhost/${client.url}` })
+  assert.equal(bundle.status, 200)
+  assert.match(await bundle.text(), /cae-models-title/)
   const catalog = await ctx.sessionController.modelCatalog()
   assert.deepEqual(catalog.groups, [])
   assert.deepEqual(catalog.failures, [])

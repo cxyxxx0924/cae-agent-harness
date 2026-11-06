@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+contextBridge.exposeInMainWorld('caeDesktop', {
+  clearCache: () => ipcRenderer.invoke('desktop:clear-cache'),
+})
+
 contextBridge.exposeInMainWorld('caeModels', {
   load: () => ipcRenderer.invoke('models:load'),
   save: (settings: unknown) => ipcRenderer.invoke('models:save', settings),

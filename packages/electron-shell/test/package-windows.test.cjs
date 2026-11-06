@@ -3,7 +3,7 @@ const { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } = require('nod
 const { test } = require('node:test')
 const { tmpdir } = require('node:os')
 const { join } = require('node:path')
-const { isNodeScript, materializeSymlinks, pnpmInvocation } = require('../scripts/package-windows.cjs')
+const { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi } = require('../scripts/package-windows.cjs')
 
 test('runs a JavaScript pnpm entrypoint through the current Node executable', () => {
   const invocation = pnpmInvocation('/opt/pnpm/pnpm.cjs')
@@ -52,4 +52,21 @@ test('materializes package symlinks before the pnpm store is removed', async t =
   await materializeSymlinks(root)
   assert.equal((await lstat(link)).isSymbolicLink(), false)
   assert.equal(await readFile(link, 'utf8'), '{"name":"test-package"}\n')
+})
+
+test('Windows packaging rejects a desktop UI without its model host or settings startup dependencies', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'cae-package-ui-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const directory = join(root, 'packages', 'cae-ui')
+  await mkdir(directory, { recursive: true })
+  const manifest = JSON.parse(await readFile(join(__dirname, '../../cae-ui/package.json'), 'utf8'))
+  const manifestPath = join(directory, 'package.json')
+  await writeFile(manifestPath, JSON.stringify(manifest))
+  for (const file of ['index.js', 'client.js']) await writeFile(join(directory, file), '')
+  await assert.rejects(verifyDesktopUi(root), /llm\.js/)
+  await writeFile(join(directory, 'llm.js'), '')
+  await verifyDesktopUi(root)
+  manifest.dsh.client.inject = ['@deepseek-ai/dsh-client-ui-settings']
+  await writeFile(manifestPath, JSON.stringify(manifest))
+  await assert.rejects(verifyDesktopUi(root), /startup dependency/)
 })

@@ -11,6 +11,40 @@ window.__ModuleLoader__.load({
     ]
     const element = createElement
 
+    function CacheSettings() {
+      const api = window.caeDesktop
+      const [busy, setBusy] = useState(false)
+      const [message, setMessage] = useState('')
+      const [failed, setFailed] = useState(false)
+
+      async function clearCache() {
+        if (busy) return
+        setBusy(true)
+        setMessage('')
+        setFailed(false)
+        try {
+          const cleared = await api.clearCache()
+          if (cleared) setMessage('缓存已清除，正在刷新…')
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : '清除缓存失败，请重试。')
+          setFailed(true)
+        } finally {
+          setBusy(false)
+        }
+      }
+
+      return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-cache-title' },
+        element('h2', { id: 'cae-cache-title' }, '缓存'),
+        element('p', { className: 'cae-settings-intro' }, '设置入口缺失或界面显示异常时，可清除缓存并重新加载界面。'),
+        element('p', { className: 'cae-settings-note' }, '已保存的模型配置、仿真软件设置、对话记录和文件会保留。刷新会丢失未保存的输入，请先保存需要的内容。'),
+        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中清除缓存。') :
+          element('div', { className: 'cae-settings-actions' },
+            element('button', { type: 'button', disabled: busy, onClick: () => void clearCache() }, busy ? '正在清除…' : '清除缓存并刷新'),
+          ),
+        element('p', { role: failed ? 'alert' : 'status', className: 'cae-settings-message', 'data-failed': failed }, message),
+      )
+    }
+
     function ModelSettings() {
       const api = window.caeModels
       const [values, setValues] = useState(null)
@@ -108,7 +142,7 @@ window.__ModuleLoader__.load({
       return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-models-title' },
         element('h2', { id: 'cae-models-title' }, '模型'),
         element('p', { className: 'cae-settings-intro' }, '获取当前接口的模型列表，点击标签选择要使用的模型，再选择默认模型。保存后可在对话中切换。'),
-        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中配置模型。') :
+        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中配置模型。如果已在桌面应用中，请通过“视图 → 清除缓存并刷新”恢复后重试。') :
           !values ? element('p', { role: failed ? 'alert' : 'status' }, message || '正在读取模型配置…') :
             element('form', { onSubmit: event => {
               event.preventDefault()
@@ -413,12 +447,18 @@ window.__ModuleLoader__.load({
           order: 5,
           label: '仿真软件',
         }, SimulationSettings))
-        if (window.caeModels) ctx.slots.inject('settings.section', () => ctx.slots.register({
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section',
           id: 'cae-models',
           order: 3,
           label: '模型',
         }, ModelSettings))
+        ctx.slots.inject('settings.section', () => ctx.slots.register({
+          name: 'settings.section',
+          id: 'cae-cache',
+          order: 20,
+          label: '缓存',
+        }, CacheSettings))
 
         if (window.caeModels) {
           const api = window.caeModels

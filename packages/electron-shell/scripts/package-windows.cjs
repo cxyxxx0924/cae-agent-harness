@@ -128,6 +128,21 @@ async function verifyTree(directory) {
   }
 }
 
+async function verifyDesktopUi(runtime) {
+  const directory = join(runtime, 'packages', 'cae-ui')
+  const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
+  assert.equal(manifest.name, '@cae/dsh-ui', 'Desktop UI module name does not match its client registration')
+  assert.equal(manifest.dsh?.client?.platform, 'web', 'Desktop UI must declare a web client')
+  for (const dependency of [
+    '@deepseek-ai/dsh-client-ui-settings', '@deepseek-ai/dsh-client-ui-settings-general',
+    '@deepseek-ai/dsh-client-ui-workspace', '@deepseek-ai/dsh-client-ui-conversation',
+  ]) assert(manifest.dsh.client.inject?.includes(dependency), `Desktop UI is missing startup dependency: ${dependency}`)
+  for (const file of [manifest.exports?.['.'], manifest.exports?.['./client'], './llm.js']) {
+    assert.equal(typeof file, 'string', 'Desktop UI must export both host and client modules')
+    assert((await stat(join(directory, file))).isFile(), `Missing desktop UI file: ${file}`)
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2).filter(arg => arg !== '--')
   if (args.length === 1 && ['--help', '-h'].includes(args[0])) {
@@ -222,6 +237,7 @@ async function main() {
   await cp(join(shellRoot, 'resources'), join(appRoot, 'resources'), { recursive: true })
   await removeBinLinks(runtimeRoot)
   await verifyTree(runtimeRoot)
+  await verifyDesktopUi(runtimeRoot)
   for (const file of [
     'node/node.exe', 'uv/uv.exe',
     'node_modules/node-addon-require-builtin-win32-x64-msvc/prebuilt/win32-x64-msvc-napi-v9.node',
@@ -263,6 +279,6 @@ async function main() {
   }
 }
 
-module.exports = { isNodeScript, materializeSymlinks, pnpmInvocation }
+module.exports = { isNodeScript, materializeSymlinks, pnpmInvocation, verifyDesktopUi }
 
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1 })
