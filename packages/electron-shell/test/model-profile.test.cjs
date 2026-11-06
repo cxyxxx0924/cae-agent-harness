@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
+const { randomUUID } = require('node:crypto')
 const { once } = require('node:events')
-const { mkdtemp, writeFile, rm } = require('node:fs/promises')
+const { mkdtemp, readFile, writeFile, rm } = require('node:fs/promises')
 const { createServer } = require('node:http')
 const { createRequire } = require('node:module')
 const { tmpdir } = require('node:os')
@@ -40,6 +41,7 @@ async function startModelRuntime(t, model, models = [], configured = true) {
       return
     }
     response.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    const inputTokens = Math.ceil(JSON.stringify(received.at(-1).body).length / 4)
     response.end([
       `data: ${JSON.stringify({
         id: 'smoke-completion',
@@ -49,6 +51,7 @@ async function startModelRuntime(t, model, models = [], configured = true) {
         choices: [{ index: 0, delta: { role: 'assistant', content: 'configured-ok' }, finish_reason: null }],
       })}\n\n`,
       `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] })}\n\n`,
+      `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: inputTokens, completion_tokens: 3, total_tokens: inputTokens + 3 } })}\n\n`,
       'data: [DONE]\n\n',
     ].join(''))
   })
@@ -92,6 +95,69 @@ async function startModelRuntime(t, model, models = [], configured = true) {
   ctx = runtime.ctx
   return { ctx, received }
 }
+
+async function prompt(ctx, sessionId, text) {
+  await ctx.sessionController.prompt({
+    sessionId, requestId: `test-${randomUUID()}`, mode: 'queue',
+    content: [{ type: 'text', text }],
+  }, AbortSignal.timeout(15000))
+  const agent = ctx.agents.get(sessionId)
+  await agent.whenIdle()
+  return agent
+}
+
+test('a 64K model automatically compacts long completed turns before the next request', { timeout: 30000 }, async t => {
+  const { ctx, received } = await startModelRuntime(t, 'configured-model')
+  const { sessionId } = await ctx.sessionController.create({})
+  assert.equal((await ctx.llm.resolveModelInfo('cae', 'configured-model')).context.contextWindow, 65536)
+  const payload = 'completed engineering evidence. '.repeat(2400)
+  for (let turn = 0; turn < 3; turn++) await prompt(ctx, sessionId, `turn ${turn}: ${payload}`)
+  const agent = await prompt(ctx, sessionId, 'Continue using the confirmed project inputs.')
+  const summaries = agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary')
+  assert.ok(summaries.length, 'automatic compaction must run for the 64K fallback model')
+  assert.ok(received.length > 4, 'history summarization must use a real routed model request')
+  const finalRequest = received.at(-1).body
+  assert.ok(JSON.stringify(finalRequest).length < 65536 * 4 * 0.7, 'the next request must stay below the compaction threshold')
+  assert.ok(ctx.tokenMeter.measure(agent.session).totalTokens < 65536 * 0.7)
+  assert.ok(ctx.commands.list(agent).some(command => command.name === 'compact'))
+  const manual = await ctx.commands.execute(agent, '/compact', [], AbortSignal.timeout(10000))
+  assert.equal(manual.result.kind, 'success')
+  assert.match(manual.result.text, /^Compacted /, 'the native command must also compact below the automatic threshold')
+  const second = await ctx.sessionController.create({})
+  const secondAgent = await prompt(ctx, second.sessionId, 'A new independent project.')
+  assert.equal(secondAgent.session.snapshotEvents().filter(event => event.type === 'compaction/summary').length, 0)
+  assert.ok(ctx.tokenMeter.measure(secondAgent.session).totalTokens < 10000, 'new conversations must not inherit previous context')
+})
+
+test('oversized tool output keeps a bounded preview and a recoverable full result', { timeout: 30000 }, async t => {
+  const { ctx } = await startModelRuntime(t, 'configured-model')
+  const { sessionId } = await ctx.sessionController.create({})
+  const dshRequire = createRequire(require.resolve('@deepseek-ai/dsh/package.json'))
+  const { defineTool } = await import(pathToFileURL(dshRequire.resolve('@deepseek-ai/dsh-tools')).href)
+  const fullOutput = 'solver detail\n'.repeat(12000)
+  ctx.tools.register(defineTool({
+    name: 'context_fixture', description: 'A large output fixture.', parameters: {},
+    output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+    execute: async () => fullOutput,
+  }))
+  const result = await ctx.tools.execute({
+    callId: 'large-output', name: 'context_fixture', arguments: {},
+    agent: ctx.agents.get(sessionId), signal: AbortSignal.timeout(10000),
+  })
+  assert.equal(result.isError, false)
+  assert.equal(result.value, fullOutput, 'canonical data must stay intact')
+  const preview = result.content.filter(block => block.type === 'text').map(block => block.text).join('\n')
+  assert.ok(preview.length < 4096 * 4)
+  const saved = preview.match(/Full formatted result stored at: (.*?)\. /)
+  assert.ok(saved, 'truncation must identify the full result')
+  assert.equal(await readFile(saved[1], 'utf8'), fullOutput)
+  const workflow = await ctx.tools.execute({
+    callId: 'create-workflow', name: 'cae_workflow', arguments: { action: 'create' },
+    agent: ctx.agents.get(sessionId), signal: AbortSignal.timeout(10000),
+  })
+  assert.equal(workflow.isError, false, 'compact workflow results must remain valid canonical JSON')
+  assert.equal(workflow.value.state.status, 'parameters')
+})
 
 test('an unconfigured desktop runtime starts with an empty catalog and can browse a blank session', { timeout: 30000 }, async t => {
   const { ctx, received } = await startModelRuntime(t, 'inherited-model', ['inherited-model'], false)
@@ -198,6 +264,7 @@ test('an unavailable initial model can be replaced while reasoning models retain
 for (const model of ['deepseek-flash', 'deepseek-v4-pro']) {
   test(`${model} exposes reasoning levels and sends the selected effort`, { timeout: 30000 }, async t => {
     const { ctx, received } = await startModelRuntime(t, model)
+    assert.equal((await ctx.llm.resolveModelInfo('cae', model)).context.contextWindow, 1000000)
     const catalog = await ctx.sessionController.modelCatalog()
     assert.deepEqual(catalog.failures, [])
     const reasoning = catalog.groups[0].models[0].reasoning

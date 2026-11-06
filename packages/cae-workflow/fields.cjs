@@ -31,15 +31,15 @@ const STAGES = [
   },
   {
     id: 'mesh', title: '网格', action: '生成网格', skill: SKILLS.mesh, review: true,
-    help: '请提供当前模型的案例配置。部件编号、分层、几何连接和门禁基线必须对应本项目；样例 case.json 只能参考。',
+    help: '填写网格尺寸和单元类型即可，无需上传 case.json。执行时会根据已确认的分区模型生成本项目配置；无法从模型或已验证文件确认的项目参数会在执行前另行询问。',
     fields: [
       number('element_size', '目标网格尺寸（mm）', { min: 0.01, max: 100, default: 5 }),
       choice('element_type', '单元类型', ['mixed', 'quad', 'tria'], { default: 'mixed' }),
-      file('case_file', '当前项目的网格案例配置（case.json）', { extensions: ['json'], hint: '包含本模型的 layers、parts、mesh、assemble、gates；开始前会校验结构。' }),
+      file('reference_mesh_k', '本项目已认可的参考网格 K 文件（可选）', { extensions: ['k', 'key'], required: false, hint: '用于生成分区覆盖门禁基线。没有合适的本项目参考网格时可留空，执行前会询问如何建立并确认基线。' }),
       field('notes', '网格及连接要求', 'textarea', { required: false }),
     ],
     outputs: ['mesh_model', 'curtain_k', 'preview', 'verification'],
-    instructions: '先读 references/00_RUNBOOK_接新气帘.md、04_pitfalls.md、16_generic_pipeline.md。仅使用本次生成的 mesh.case.json 调用现有脚本，不修改 skill 脚本，不复制 cab2 的几何数值。element_size 写入 mesh.size，单元类型写入 mesh.bl_etype。门禁已生成 mesh.gate.json，目标 K 固定为 out/curtain_airbag.k。逐项检查装配参数及所需几何/拉带输入，缺少本项目参数用 request_input。运行严格 K、auto_gate、质量和分区覆盖门禁，缺件或失败必须停止。',
+    instructions: '先读 references/00_RUNBOOK_接新气帘.md、04_pitfalls.md、16_generic_pipeline.md 和 cases/README.md。根据当前 partitioned.hm 调查组件 ID、平面/厚度方向及实际分区；在 jobDirectory 内生成 mesh.case.json 和 mesh.gate.json，再调用现有脚本。不要求上传 case.json。element_size 写入 mesh.size，单元类型写入 mesh.bl_etype。不要复制 cab1/cab2 的坐标、分层、部件清单、组装参数或门禁基线；逐项核对技能脚本的实际支持和硬编码。任何无法由当前模型、已验证文件或脚本约束可靠确定的项目参数，都用 request_input 说明字段、单位和所需依据并等待用户补充，不得猜测或略过门禁。目标 K 固定为 out/curtain_airbag.k；运行严格 K、auto_gate、质量和分区覆盖四道门禁，缺件或失败必须停止。',
   },
   {
     id: 'solve', title: '求解', action: '提交组合求解', skill: SKILLS.solve,

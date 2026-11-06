@@ -12,17 +12,25 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 1. 调用 `cae_workflow` 的 `create` 或 `status`。工作流绑定当前对话。
 2. 提示用户打开对话顶部的“仿真工作流”，填写当前阶段的参数。界面使用 dsh 原生侧栏与默认布局。
 3. 当状态为 `parameters`、`blocked`、`review` 时停止执行，等待用户操作。只有用户表单提交后的 `ready` 状态可以 `begin`。
-4. `begin` 返回 `state.executionId`、`state.skillPath`、`state.jobDirectory`、当前阶段定义及已提交参数。先读对应 skill，再读取生成的 `<stage>.parameters.json`；网格和求解分别有 `mesh.case.json`、`solve.case.json`。
+4. `begin` 返回 `state.executionId`、`state.skillPath`、`state.jobDirectory`、当前阶段定义及 `state.parameterFile`，网格和求解还返回 `state.caseFile`，网格另有 `state.gateFile`。先读对应 skill，再按需读取这些文件中的当前参数；完整配置保存在文件中，工具不会重复返回其它阶段的参数或执行历史。
 5. 只执行当前阶段。完成后调用 `complete`，传 `execution_id` 和真实产物。后续阶段重新等用户填写参数；分区、网格、后处理还要用户确认结果。
 
 用户确认只通过应用界面发生。不要代用户填表、改状态文件或连续跳过多个阶段。
 
+## 上下文预算
+
+- 仅在进入当前阶段时读取其 skill，按引用按需读取 runbook 和脚本；大文件用 `read` 的 offset/limit 分页，不要一次加载整个 docs 目录。
+- 不在对话中读取原始 IGS、完整 K 文件、节点/单元列表、完整求解日志或全部工作流状态。用本地脚本提取数量、范围、失败项与必要日志尾部，完整数据留在文件中。
+- 超长工具输出会返回有限预览和完整结果路径。需要中间片段时分页读取该路径；不能因预览被裁剪而省略技能要求的门禁或验证。
+- 求解轮询只返回状态变化、必要的错误和少量最新日志；不重复回传完整历史。dsh 在接近窗口预算时自动压缩历史，必须保留当前执行标识、参数文件、实际产物路径和待用户确认项。
+
 ## 参数来源
 
-- IGS、工作目录、网格尺寸及类型、当前模型案例配置、车身和参考模型、材料、装配 DY/DZ、拉带数量、终止时间、CPU/内存等来自表单。
+- IGS、工作目录、网格尺寸及类型、可选的已认可参考网格 K、车身和参考模型、材料、装配 DY/DZ、拉带数量、终止时间、CPU/内存等来自表单。
 - 后处理时刻范围、帧数、帧率、云图类型来自表单。
 - 报告标题、人员、模板、测点、坐标对齐依据、G.3 头部重心、测量/展开对照/起爆时刻来自表单。`g14_thickness.py` 的 `--t-main/--t-early/--tdet` 必须全部显式传入，不能使用脚本的案例默认时刻。
-- 部件号、分层、锚点位置、参考卡参数应从当前模型和参考 deck 读取并校验。不能从 `cab2`、`case_config.example.json` 等样例直接复制。
+- 网格阶段不要求用户上传 `case.json`。根据当前 `partitioned.hm`、分区回读报告和 CAD 采样证据，在 `jobDirectory` 内生成本次专用 `mesh.case.json` 与 `mesh.gate.json`；需要目视时从前阶段的真实 `preview` artifact 打开分区预览。部件号、分层、厚度轴、装配/拉带输入、CAD tag 和门禁基线必须从当前模型、已验证文件或用户确认中取得，不能从 `cab1`、`cab2` 或其它案例直接复制。
+- `partition_cover_check` 需要已认可的参考网格 manifest。若用户提供当前项目已认可的参考 K，按技能规定从它生成本次 manifest；否则不得用当前待验收网格冒充基线、不得跳过门禁，须通过 `request_input` 询问已认可基线或首次验收方案，并等待用户提供项目依据/确认。
 - 如果技能还需要用户提供参数，或者当前输入不足以确定物理条件，调用 `request_input`，传当前 `execution_id`，在 `message` 中具体说明缺少的信息、单位及来源。界面会提示补充，等待用户提交后再执行。
 - 允许从实际文件计算派生量；必须写入证据，不能用样例坐标、项目路径、个人电脑 Python 路径或经验数值替代未知输入。
 - 所有输出写入本工作流目录，保留原输入。软件路径使用应用设置，Python 使用已配置工具环境；显式覆盖技能脚本中的历史默认路径。
@@ -33,7 +41,7 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 | --- | --- | --- |
 | import | `docs/气帘iges分区skill/SKILL.md` | 用 `t00_import_iges.tcl`，显式设置 IGES/WORKDIR/HMBATCH/PY；交付真实 curves.hm |
 | partition | 同上 | v2 采样 → auto_partition2 → p06 → t07 → t08；BELT/CAVITY/SEAM/TETHER 四分区；独立回读 VERIFY_FAIL=0 |
-| mesh | `docs/气帘自动网格划分_20261101(1)/气帘自动网格划分/SKILL.md` | 先读接新模型 runbook、pitfalls、generic pipeline；用本次 mesh.case.json；四道门禁全部通过 |
+| mesh | `docs/气帘自动网格划分_20261101(1)/气帘自动网格划分/SKILL.md` | 先读接新模型 runbook、pitfalls、generic pipeline 与 cases/README；从当前分区模型生成本次 mesh.case.json，无需上传配置文件；四道门禁全部通过 |
 | solve | `docs/气帘计算求解skill_20261102(1)/气帘计算求解skill/SKILL.md` | 先读 references/09、10；组合 K，ID 审计，保持参考卡物理参数，parity/阻尼门禁后先探针再正式算 |
 | postprocess | `docs/气帘评判及报告skill_20261103(1)/气帘评判及报告skill/SKILL.md` | 实际 bridge 状态 → MCP 启动 → 轮询在线；按用户时刻等参数生成四视角与动画 |
 | report | 同上 | summary 只写过程摘要；assessment 使用真实测点与坐标对齐证据，缺失动态证据不得宣称法规 PASS |

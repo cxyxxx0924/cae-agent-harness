@@ -23,7 +23,7 @@ function fixture(t) {
     plane: 'xy', layers: ['belt', 'cavity', 'seam', 'tether'].map((role, index) => ({ role, cid: index + 20, pid: index + 30, tag: `L${index + 1}`, z: [0] })),
     parts: ['belt', 'cavity', 'seam', 'tether'], assemble: {}, gates: { gate_case: file('gate_case.json', {}), partition_manifest: file('manifest.json', {}) },
   }
-  const mesh = { element_size: 7, element_type: 'mixed', case_file: file('case.json', config) }
+  const mesh = { element_size: 7, element_type: 'mixed', reference_mesh_k: file('reference.k') }
   const root = path.resolve(__dirname, '../../..')
   const setStage = (index, status = 'parameters') => {
     store.create('s1')
@@ -78,15 +78,14 @@ test('case-specific solver, time and assessment parameters are required and vali
   assert.throws(() => validateParameters(report, { title: 'Report', analyst: 'Analyst', report_mode: 'assessment' }), /头部|坐标/)
 })
 
-test('mesh validates project layers and gate assets and captures submitted configuration', t => {
+test('mesh form does not require case.json and accepts only an optional project reference mesh', t => {
   const f = fixture(t)
   const stage = STAGES.find(stage => stage.id === 'mesh')
   const raw = validateParameters(stage, f.mesh)
-  assert.equal(raw.case_config.layers[0].cid, 20)
-  f.file('case.json', { ...f.config, layers: [] })
-  assert.throws(() => validateParameters(stage, f.mesh), /四分区/)
-  f.file('case.json', { ...f.config, gates: { gate_case: 'missing.json', partition_manifest: f.config.gates.partition_manifest } })
-  assert.throws(() => validateParameters(stage, f.mesh), /gate_case/)
+  assert.equal(raw.reference_mesh_k, f.mesh.reference_mesh_k)
+  assert.equal(stage.fields.some(field => field.id === 'case_file'), false)
+  assert.equal(validateParameters(stage, { element_size: 5, element_type: 'mixed' }).element_size, 5)
+  assert.throws(() => validateParameters(stage, { element_size: 5, element_type: 'mixed', reference_mesh_k: 'relative.k' }), /完整文件路径/)
 })
 
 test('software validation respects the selected backend and checks executable existence', t => {
@@ -108,14 +107,12 @@ test('all six stages use submitted values and review stages require a user confi
     state = f.store.submit('s1', state.revision, parameters[index], f.software)
     state = f.store.begin('s1', f.software, f.root)
     if (index === 2) {
-      const config = JSON.parse(fs.readFileSync(path.join(state.jobDirectory, 'mesh.case.json')))
-      assert.equal(config.mesh.size, 7)
-      assert.equal(config.layers[0].pid, 30)
-      assert.equal(config.model, 'partitioned.hm')
-      const gate = JSON.parse(fs.readFileSync(config.gates.gate_case))
-      assert.equal(gate.mesh_nominal_mm, 7)
-      assert.equal(gate.pid_scheme.belt, 30)
-      assert.equal(gate.k_file, path.join(state.jobDirectory, 'out', 'curtain_airbag.k'))
+      assert.equal(fs.existsSync(path.join(state.jobDirectory, 'input', 'partitioned.hm')), true)
+      const params = JSON.parse(fs.readFileSync(path.join(state.jobDirectory, 'mesh.parameters.json')))
+      assert.equal(params.element_size, 7)
+      assert.equal(params.partitioned_model, state.stages[1].artifacts.find(artifact => artifact.role === 'partitioned_model').path)
+      assert.equal(params.reference_mesh_k, f.mesh.reference_mesh_k)
+      assert.equal(fs.existsSync(path.join(state.jobDirectory, 'mesh.case.json')), false, 'the agent generates case data after inspecting this project model')
     }
     if (index === 3) {
       const config = JSON.parse(fs.readFileSync(path.join(state.jobDirectory, 'solve.case.json')))

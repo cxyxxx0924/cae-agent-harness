@@ -19,16 +19,31 @@ export function softwareFromEnvironment(env = process.env) {
   }
 }
 
+export function workflowView(state) {
+  const stage = state ? STAGES[state.current] : null
+  const running = state?.status === 'running'
+  return {
+    state: state ? {
+      id: state.id, sessionId: state.sessionId, revision: state.revision,
+      current: state.current, status: state.status,
+      jobDirectory: state.jobDirectory ?? null, executionId: state.executionId ?? null, skillPath: state.skillPath ?? null,
+      configuration: state.configuration ?? null, feedback: state.feedback ?? '', additionalRequest: state.additionalRequest ?? '',
+      error: state.error ?? '', startedAt: state.startedAt ?? null,
+      successfulTools: running ? [...new Set((state.toolRuns || []).filter(run => run.success).map(run => run.name))] : [],
+      stages: state.stages.map(({ id, status, artifacts }) => ({ id, status, artifacts })),
+      parameterFile: running ? join(state.jobDirectory, `${stage.id}.parameters.json`) : null,
+      caseFile: running && ['mesh', 'solve'].includes(stage.id) ? join(state.jobDirectory, `${stage.id}.case.json`) : null,
+      gateFile: running && stage.id === 'mesh' ? join(state.jobDirectory, 'mesh.gate.json') : null,
+    } : null,
+    stage: stage ? { id: stage.id, title: stage.title, instructions: stage.instructions, outputs: stage.outputs, review: Boolean(stage.review) } : null,
+    instruction: '用户只能在应用工作流表单提交参数和确认结果。不得代用户提交、猜测样例参数或直接改状态文件。每次只执行当前阶段；运行时从 parameterFile/caseFile/gateFile 按需读取完整参数，不要读取整个工作流状态或重复加载其它阶段。网格阶段从已确认的分区模型生成案例配置，无需用户上传 case.json；如需检查预览，从之前阶段 artifacts 中读取真实预览路径。不确定的项目参数调用 request_input 暂停并说明需要填写什么。',
+  }
+}
+
 export function apply(ctx) {
   const store = new WorkflowStore(process.env.CAE_WORKFLOW_DIR || join(homedir(), '.cae-agent', 'workflows'))
   const root = resolve(process.env.CAE_PROJECT_ROOT || process.cwd())
   store.interruptRunning()
-  const view = state => ({
-    state,
-    stage: state ? STAGES[state.current] : null,
-    instruction: '用户只能在应用工作流表单提交参数和确认结果。不得代用户提交、猜测样例参数或直接改状态文件。每次只执行当前阶段；缺少额外项目参数时调用 request_input 暂停并说明需要填写什么。',
-  })
-
   ctx.tools.register(defineTool({
     name: 'cae_workflow',
     description: 'CAE 气帘工作流：create 创建并提示用户填表；status 查看当前阶段；begin 在用户提交参数后取得执行标识、skill 和参数；complete 校验实际产物；request_input 暂停等待补充项目参数；fail 记录失败。用户的确认仅能在界面操作。',
@@ -50,7 +65,7 @@ export function apply(ctx) {
       else if (args.action === 'request_input') state = store.requestInput(sessionId, args.execution_id, args.message)
       else state = store.fail(sessionId, args.execution_id, args.message || '执行失败，请查看对话中的实际工具日志。')
       if (!state || !['ready', 'running'].includes(state.status)) exec.concludeTurn()
-      return view(state)
+      return workflowView(state)
     },
   }))
 

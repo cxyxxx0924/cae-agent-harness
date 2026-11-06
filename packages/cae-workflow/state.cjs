@@ -45,22 +45,6 @@ function validateParameters(stage, raw) {
   if (stage.id === 'report' && values.report_mode === 'assessment' && values.detonation_time > values.measurement_time) errors.push('厚度评判时刻不能早于起爆时刻。')
   if (stage.id === 'report' && values.report_mode === 'assessment' && (values.early_time < values.detonation_time || values.early_time > values.measurement_time)) errors.push('展开对照时刻应在起爆时刻与厚度评判时刻之间。')
   if (errors.length) throw new Error(errors.join('\n'))
-  if (stage.id === 'mesh') {
-    const config = readJson(values.case_file)
-    const roles = ['belt', 'cavity', 'seam', 'tether']
-    if (!Array.isArray(config.layers) || roles.some(role => !config.layers.some(layer => layer.role === role && Number.isInteger(layer.cid) && layer.cid > 0 && Number.isInteger(layer.pid) && layer.pid > 0 && typeof layer.tag === 'string' && /^[A-Za-z][A-Za-z0-9_]*$/.test(layer.tag) && Array.isArray(layer.z) && layer.z.length && layer.z.every(Number.isFinite)))) throw new Error('案例配置需为四分区分别指定 layers.role、正整数 cid/pid、英文 tag 和分层坐标 z。')
-    if (['role', 'cid', 'pid', 'tag'].some(key => new Set(config.layers.map(layer => layer[key])).size !== config.layers.length)) throw new Error('案例配置 layers 中的 role、cid、pid 和 tag 必须各自唯一。')
-    if (!['xy', 'xz'].includes(config.plane) || !Array.isArray(config.parts) || roles.some(role => !config.parts.includes(role)) || !config.assemble || !config.gates?.gate_case || !config.gates?.partition_manifest) throw new Error('案例配置缺少本模型的 plane、四分区 parts、assemble 或门禁基线 gates。')
-    // Resolve case-owned assets before copying the configuration to the job folder.
-    for (const key of ['gate_case', 'partition_manifest']) {
-      const file = config.gates[key]
-      if (typeof file !== 'string') throw new Error(`案例配置 gates.${key} 必须是文件路径。`)
-      config.gates[key] = absolute(file) ? file : path.resolve(path.dirname(values.case_file), file)
-      if (!localFile(config.gates[key])) throw new Error(`请提供本项目可访问的 gates.${key}：${config.gates[key]}`)
-    }
-    values.case_config = config
-    values.gate_config = readJson(config.gates.gate_case)
-  }
   if (values.head_points) {
     const points = readJson(values.head_points)
     const rows = Array.isArray(points) ? points : points?.heads || points?.rows
@@ -218,24 +202,12 @@ class WorkflowStore {
       if (!localFile(state.skillPath)) throw new Error(`工作流 skill 缺失：${state.skillPath}`)
       const parameters = copy(state.parameters)
       if (stage.id === 'mesh') {
-        const config = copy(parameters.mesh.case_config)
         const source = state.stages[1].artifacts.find(artifact => artifact.role === 'partitioned_model')?.path
         if (!source || !localFile(source)) throw new Error('缺少已确认的分区模型。')
         fs.mkdirSync(path.join(jobDirectory, 'input'), { recursive: true })
         fs.copyFileSync(source, path.join(jobDirectory, 'input', 'partitioned.hm'))
-        config.model = 'partitioned.hm'
-        config.mesh = { ...config.mesh, size: parameters.mesh.element_size, bl_etype: parameters.mesh.element_type }
-        const gate = copy(parameters.mesh.gate_config)
-        gate.k_file = path.join(jobDirectory, 'out', 'curtain_airbag.k')
-        gate.mesh_nominal_mm = parameters.mesh.element_size
-        gate.thickness_axis = config.plane === 'xy' ? 'Z' : 'Y'
-        gate.pid_scheme = Object.fromEntries(config.layers.map(layer => [layer.role, layer.pid]))
-        gate.cad_tag = Object.fromEntries(config.layers.map(layer => [layer.role, layer.tag]))
-        gate.layers = Object.fromEntries(config.layers.map(layer => [layer.role, layer.z.length === 1 ? layer.z[0] : layer.z]))
-        if (typeof gate.cad_lines_2d === 'string') gate.cad_lines_2d = gate.cad_lines_2d.replaceAll('${WORKDIR}', jobDirectory)
-        config.gates.gate_case = path.join(jobDirectory, 'mesh.gate.json')
-        fs.writeFileSync(config.gates.gate_case, JSON.stringify(gate, null, 2))
-        fs.writeFileSync(path.join(jobDirectory, 'mesh.case.json'), JSON.stringify(config, null, 2))
+        parameters.mesh.partitioned_model = source
+        if (parameters.mesh.reference_mesh_k) parameters.mesh.reference_mesh_k = path.resolve(parameters.mesh.reference_mesh_k)
       }
       if (stage.id === 'solve') {
         const p = parameters.solve

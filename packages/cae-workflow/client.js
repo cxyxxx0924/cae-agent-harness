@@ -41,7 +41,7 @@ window.__ModuleLoader__.load({
       return view
     }
 
-    function Preview({ sessionId, artifact }) {
+    function Preview({ sessionId, artifact, onOpen }) {
       const [source, setSource] = useState('')
       useEffect(() => {
         let active = true
@@ -49,18 +49,29 @@ window.__ModuleLoader__.load({
         if (artifact && !artifact.remote) api.preview(sessionId, artifact.path).then(value => { if (active) setSource(value) }).catch(() => {})
         return () => { active = false }
       }, [sessionId, artifact?.path, artifact?.executionId])
-      return source ? h('img', { className: 'cae-flow-preview', src: source, alt: roles[artifact.role] || artifact.role }) : null
+      return source ? h('button', { type: 'button', className: 'cae-flow-preview-trigger', onClick: () => onOpen(source, roles[artifact.role] || artifact.role), 'aria-label': `放大查看${roles[artifact.role] || artifact.role}` }, h('img', { className: 'cae-flow-preview', src: source, alt: roles[artifact.role] || artifact.role })) : null
     }
 
     function Artifacts({ sessionId, artifacts = [] }) {
       const [error, setError] = useState('')
+      const [expanded, setExpanded] = useState(null)
+      useEffect(() => {
+        if (!expanded) return
+        const closeOnEscape = event => { if (event.key === 'Escape') setExpanded(null) }
+        window.addEventListener('keydown', closeOnEscape)
+        return () => window.removeEventListener('keydown', closeOnEscape)
+      }, [expanded])
       return h('div', { className: 'cae-flow-artifacts' },
-        ...artifacts.filter(artifact => ['preview', 'animation'].includes(artifact.role)).map(artifact => h(Preview, { key: artifact.path, sessionId, artifact })),
+        ...artifacts.filter(artifact => ['preview', 'animation'].includes(artifact.role)).map(artifact => h(Preview, { key: artifact.path, sessionId, artifact, onOpen: (src, label) => setExpanded({ src, label }) })),
         ...artifacts.map(artifact => h('div', { key: artifact.role + artifact.path, className: 'cae-flow-artifact' },
           h('span', null, roles[artifact.role] || artifact.role),
           h('code', { title: artifact.path }, artifact.path),
           artifact.remote ? h('small', null, '服务端文件，请同步后查看') : h('button', { type: 'button', onClick: () => api.open(sessionId, artifact.path).catch(error => setError(error.message)) }, '打开'),
         )),
+        expanded && h('div', { className: 'cae-flow-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': expanded.label, onClick: event => { if (event.target === event.currentTarget) setExpanded(null) } },
+          h('button', { type: 'button', className: 'cae-flow-lightbox-close', onClick: () => setExpanded(null), 'aria-label': '关闭大图', title: '关闭（Esc）' }, '×'),
+          h('img', { src: expanded.src, alt: expanded.label }),
+        ),
         error && h('p', { role: 'alert' }, error),
       )
     }
@@ -202,7 +213,12 @@ window.__ModuleLoader__.load({
       .cae-flow-artifacts { margin: 14px 0; }
       .cae-flow-artifact { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 0; border-bottom: 1px solid var(--dsw-alias-border-l2); }
       .cae-flow-artifact code { width: 100%; font-size: 11px; word-break: break-all; color: var(--dsw-alias-label-secondary); }
-      .cae-flow-preview { display: block; max-width: 100%; max-height: 420px; object-fit: contain; margin: 12px auto; border-radius: 8px; }
+      .cae-flow-preview-trigger { display: block; width: 100%; border: 0 !important; padding: 0 !important; margin: 12px 0; background: transparent !important; cursor: zoom-in !important; }
+      .cae-flow-preview { display: block; max-width: 100%; max-height: 420px; object-fit: contain; margin: 0 auto; border-radius: 6px; }
+      .cae-flow-lightbox { position: fixed; z-index: 10000; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; background: rgb(8 12 18 / 88%); }
+      .cae-flow-lightbox img { display: block; max-width: min(96vw, 1800px); max-height: 92vh; object-fit: contain; }
+      .cae-flow .cae-flow-lightbox-close { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 42px; height: 42px; padding: 0; border: 1px solid rgb(255 255 255 / 45%); background: rgb(0 0 0 / 45%); color: #fff; font-size: 28px; line-height: 1; }
+      @media (max-width: 600px) { .cae-flow-lightbox { padding: 12px; } .cae-flow-lightbox img { max-width: 100%; max-height: 88vh; } }
       .cae-flow-review > label { margin-top: 20px; }
       .cae-flow-review textarea { margin-bottom: 8px; }
       .cae-flow-traces { padding-left: 20px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
