@@ -190,7 +190,7 @@ async function main() {
   for (const file of [
     'config/cae-airbag.cordis.yml', 'config/config.yaml', 'config/airbag-defaults.yaml',
     'skills', 'packages/cae-mcp-server/dist',
-    'packages/cae-ui/index.js', 'packages/cae-ui/client.js',
+    'packages/cae-ui/index.js', 'packages/cae-ui/client.js', 'packages/cae-ui/llm.js',
   ]) await copyProjectFile(file)
   for (const project of ['hyperworks-mcp', 'qilan-solve']) {
     for (const file of ['pyproject.toml', 'uv.lock', 'src']) await copyProjectFile(`packages/${project}/${file}`)

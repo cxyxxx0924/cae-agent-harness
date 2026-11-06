@@ -90,15 +90,19 @@ async function startModelRuntime(t, model, models = []) {
   return { ctx, received }
 }
 
-async function complete(ctx, selection) {
+async function complete(ctx, selection, prepare = false) {
   let text = ''
   let finish
-  for await (const chunk of ctx.llm.stream({
+  const options = {
     ...selection,
     messages: [{ role: 'user', content: [{ type: 'text', text: 'smoke test' }] }],
     maxTokens: 16,
     signal: AbortSignal.timeout(10000),
-  })) {
+  }
+  const prepared = prepare ? await ctx.llm.prepareCall(selection, options.signal) : undefined
+  if (prepared) assert.equal(prepared.config.reasoningEffort, 'high')
+  const stream = prepared ? prepared.stream({ ...options, ...prepared.config }) : ctx.llm.stream(options)
+  for await (const chunk of stream) {
     if (chunk.type === 'text-delta') text += chunk.text
     if (chunk.type === 'finish') finish = chunk.reason
   }
@@ -124,12 +128,14 @@ test('saved model is advertised, selected by default and sent through Chat Compl
   assert.equal(received[0].body.model, 'configured-model')
 })
 
-test('an unavailable initial model can be replaced in the same session by another saved model', { timeout: 30000 }, async t => {
-  const { ctx, received } = await startModelRuntime(t, 'missing-model', ['working-model', 'deepseek-flash'])
+test('an unavailable initial model can be replaced while reasoning models retain their own High default', { timeout: 30000 }, async t => {
+  const { ctx, received } = await startModelRuntime(t, 'missing-model', ['working-model', 'deepseek-flash', 'deepseek-v4-pro'])
   const catalog = await ctx.sessionController.modelCatalog()
-  assert.deepEqual(catalog.groups[0].models.map(model => model.id), ['missing-model', 'working-model', 'deepseek-flash'])
+  assert.deepEqual(catalog.groups[0].models.map(model => model.id), ['missing-model', 'working-model', 'deepseek-flash', 'deepseek-v4-pro'])
   assert.equal(catalog.groups[0].models[1].reasoning, undefined)
   assert.deepEqual(catalog.groups[0].models[2].reasoning.efforts.map(effort => effort.id), ['off', 'low', 'high', 'max'])
+  assert.equal(catalog.groups[0].models[2].reasoning.defaultEffort, 'high')
+  assert.equal(catalog.groups[0].models[3].reasoning.defaultEffort, 'high')
 
   const { sessionId } = await ctx.sessionController.create({})
   await assert.rejects(complete(ctx, catalog.default))
@@ -138,10 +144,29 @@ test('an unavailable initial model can be replaced in the same session by anothe
   await complete(ctx, selected)
   assert.equal(received.at(-1).body.model, 'working-model')
   assert.equal(received.at(-1).body.reasoning_effort, undefined)
-  const thinking = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model: 'deepseek-flash', reasoningEffort: 'high' })
-  await complete(ctx, thinking.selected)
-  assert.equal(received.at(-1).body.thinking.type, 'enabled')
-  assert.equal(received.at(-1).body.reasoning_effort, 'high')
+  for (const model of ['deepseek-flash', 'deepseek-v4-pro']) {
+    const thinking = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model })
+    assert.equal(thinking.selected.reasoningEffort, 'high')
+    await complete(ctx, thinking.selected)
+    assert.equal(received.at(-1).body.thinking.type, 'enabled')
+    assert.equal(received.at(-1).body.reasoning_effort, 'high')
+
+    await complete(ctx, { provider: 'cae', model }, true)
+    assert.equal(received.at(-1).body.reasoning_effort, 'high')
+
+    const low = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model, reasoningEffort: 'low' })
+    await complete(ctx, low.selected)
+    assert.equal(received.at(-1).body.reasoning_effort, 'low')
+    const off = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model, reasoningEffort: 'off' })
+    await complete(ctx, off.selected)
+    assert.equal(received.at(-1).body.thinking.type, 'disabled')
+    assert.equal(received.at(-1).body.reasoning_effort, undefined)
+  }
+
+  const plain = await ctx.sessionController.selectModel({ sessionId, provider: 'cae', model: 'working-model' })
+  assert.equal(plain.selected.reasoningEffort, undefined)
+  await complete(ctx, plain.selected)
+  assert.equal(received.at(-1).body.reasoning_effort, undefined)
 })
 
 for (const model of ['deepseek-flash', 'deepseek-v4-pro']) {
