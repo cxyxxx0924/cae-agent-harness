@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('caeSettings', {
   discoverModels: (s: unknown) =>
     ipcRenderer.invoke('settings:discover-models', s),
 
+  testModels: (s: unknown) =>
+    ipcRenderer.invoke('settings:test-models', s),
+
   browseExe: (title: string) =>
     ipcRenderer.invoke('settings:browse-exe', title),
 

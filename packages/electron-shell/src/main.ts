@@ -6,7 +6,7 @@ import { existsSync, statSync } from 'node:fs'
 import { checkDshPort, waitForDsh } from './dsh-startup'
 import { RuntimeLog } from './runtime-log'
 import { loadSettings, saveSettings, isFirstRun, type CaeSettings } from './store'
-import { discoverModels, parseModelConfiguration } from './model-settings'
+import { discoverModels, parseModelConfiguration, testModels } from './model-settings'
 import { SIMULATION_FIELDS, SIMULATION_PATH_FIELDS, parseSimulationSettings, simulationEnvironment, checkSolverService } from './simulation-settings'
 import {
   preparePythonMcpEnvironments,
@@ -164,18 +164,7 @@ async function stopDsh(): Promise<void> {
 async function startDsh(): Promise<void> {
   await checkDshPort(DSH_PORT)
   if (quitting) return
-  let settings = loadSettings()
-  if (settings.models.length <= 1) {
-    try {
-      const models = await discoverModels(settings)
-      settings = { ...settings, models: [...new Set([settings.model, ...models])] }
-      saveSettings(settings)
-    } catch {
-      runtimeLog.write('main', 'Model discovery unavailable; saved models remain available and can be edited in Settings.')
-    }
-  }
-  if (quitting) return
-  dshProcess = spawnDsh(settings)
+  dshProcess = spawnDsh(loadSettings())
   try {
     dshUrl = await waitForDsh(dshProcess, DSH_URL, STARTUP_TIMEOUT_MS)
     runtimeLog.write('main', 'dsh authentication succeeded; opening chat')
@@ -253,7 +242,7 @@ function registerIpc(): void {
   ipcMain.handle('models:load', event => {
     requireMainWindow(event)
     const settings = loadSettings()
-    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, apiKey: '', hasApiKey: Boolean(settings.apiKey) }
+    return { llmBaseUrl: settings.llmBaseUrl, model: settings.model, models: settings.models, availableModels: settings.availableModels, apiKey: '', hasApiKey: Boolean(settings.apiKey) }
   })
 
   ipcMain.handle('models:save', async (event, raw: unknown) => {
@@ -267,6 +256,11 @@ function registerIpc(): void {
   ipcMain.handle('models:discover', (event, raw: unknown) => {
     requireMainWindow(event)
     return discoverModels(modelInput(raw))
+  })
+
+  ipcMain.handle('models:test', (event, raw: unknown) => {
+    requireMainWindow(event)
+    return testModels(modelInput(raw))
   })
 
   ipcMain.handle('simulation:load', event => {
@@ -318,6 +312,7 @@ function registerIpc(): void {
 
   ipcMain.handle('settings:load', () => loadSettings())
   ipcMain.handle('settings:discover-models', (_event, raw: unknown) => discoverModels(raw))
+  ipcMain.handle('settings:test-models', (_event, raw: unknown) => testModels(raw))
   ipcMain.handle('settings:check-service', (_event, raw: unknown) => checkSolverService(raw))
 
   ipcMain.handle('settings:save', async (_evt, raw: unknown) => {

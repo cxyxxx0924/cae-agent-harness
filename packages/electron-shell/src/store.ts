@@ -16,7 +16,8 @@ const DEFAULTS: CaeSettings = {
   apiKey: '',
   llmBaseUrl: '',
   model: DEFAULT_MODEL,
-  models: [DEFAULT_MODEL],
+  models: [],
+  availableModels: [],
 }
 
 function storePath(): string {
@@ -28,12 +29,13 @@ export function loadSettings(): CaeSettings {
     const p = storePath()
     if (existsSync(p)) {
       const saved = JSON.parse(readFileSync(p, 'utf8'))
-      return { ...DEFAULTS, ...saved, models: saved.models ?? [saved.model || DEFAULT_MODEL] } as CaeSettings
+      const models = saved.models ?? [saved.model || DEFAULT_MODEL]
+      return { ...DEFAULTS, ...saved, models, availableModels: saved.availableModels ?? models } as CaeSettings
     }
   } catch {
     // ignore corrupt file — fall through to defaults
   }
-  return { ...DEFAULTS, models: [...DEFAULTS.models] }
+  return { ...DEFAULTS, models: [], availableModels: [] }
 }
 
 export function saveSettings(raw: unknown): void {

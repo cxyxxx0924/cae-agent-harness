@@ -14,18 +14,18 @@ window.__ModuleLoader__.load({
     function ModelSettings() {
       const api = window.caeModels
       const [values, setValues] = useState(null)
-      const [models, setModels] = useState('')
       const [busy, setBusy] = useState(false)
       const [message, setMessage] = useState('')
       const [failed, setFailed] = useState(false)
+      const [search, setSearch] = useState('')
+      const [onlySelected, setOnlySelected] = useState(false)
+      const [checks, setChecks] = useState({})
 
       useEffect(() => {
         if (!api) return
         let active = true
         api.load().then(settings => {
-          if (!active) return
-          setValues(settings)
-          setModels(settings.models.join('\n'))
+          if (active) setValues(settings)
         }).catch(() => {
           if (!active) return
           setMessage('读取模型配置失败，请关闭设置后重试。')
@@ -49,9 +49,15 @@ window.__ModuleLoader__.load({
         }
       }
 
-      function update(id, value) {
-        setValues(previous => ({ ...previous, [id]: value }))
+      function select(models) {
+        setValues(previous => ({ ...previous, models, model: models.includes(previous.model) ? previous.model : models[0] || '' }))
         setMessage('')
+      }
+
+      function update(id, value) {
+        setValues(previous => ({ ...previous, [id]: value, models: [], availableModels: [], model: '' }))
+        setChecks({})
+        setMessage('接口配置已修改，请重新获取模型列表。')
       }
 
       function field(id, label, type, placeholder, hint) {
@@ -60,7 +66,6 @@ window.__ModuleLoader__.load({
           element('div', { className: 'cae-settings-input-row' }, element('input', {
             id: `cae-${id}`, type, value: values[id], placeholder,
             autoComplete: 'off', spellCheck: false,
-            list: id === 'model' ? 'cae-model-options' : undefined,
             'aria-describedby': `cae-${id}-hint`,
             onChange: event => update(id, event.target.value),
           })),
@@ -68,39 +73,94 @@ window.__ModuleLoader__.load({
         )
       }
 
+      async function discover() {
+        setMessage('正在获取模型列表…')
+        const discovered = await api.discover(values)
+        const selected = values.models.filter(id => discovered.includes(id))
+        const removed = values.availableModels.filter(id => !discovered.includes(id)).length
+        setValues(previous => ({
+          ...previous, availableModels: discovered, models: selected,
+          model: selected.includes(previous.model) ? previous.model : selected[0] || '',
+        }))
+        setChecks({})
+        setSearch('')
+        setOnlySelected(false)
+        setMessage(`已获取 ${discovered.length} 个模型${removed ? `，已移除 ${removed} 个接口不再提供的模型` : ''}。点击模型标签选择要使用的模型。`)
+      }
+
+      async function testSelected() {
+        setMessage('正在测试已选模型…')
+        const results = await api.test(values)
+        const unavailable = new Set(results.filter(result => result.status === 'unavailable').map(result => result.id))
+        const selected = values.models.filter(id => !unavailable.has(id))
+        setValues(previous => ({
+          ...previous, models: selected,
+          availableModels: previous.availableModels.filter(id => !unavailable.has(id)),
+          model: selected.includes(previous.model) ? previous.model : selected[0] || '',
+        }))
+        setChecks(previous => ({ ...previous, ...Object.fromEntries(results.map(result => [result.id, result])) }))
+        const passed = results.filter(result => result.status === 'available').length
+        const unknown = results.filter(result => result.status === 'unknown').length
+        setMessage(`测试通过 ${passed} 个，移除不可用模型 ${unavailable.size} 个${unknown ? `，${unknown} 个暂时无法确认并保留` : ''}。`)
+      }
+
+      const visible = values?.availableModels.filter(id => (!onlySelected || values.models.includes(id)) && id.toLowerCase().includes(search.toLowerCase())) || []
       return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-models-title' },
         element('h2', { id: 'cae-models-title' }, '模型'),
-        element('p', { className: 'cae-settings-intro' }, '查看和修改已保存的模型，保存后自动重启后台服务。对话中可以从输入框下方的模型菜单切换。'),
+        element('p', { className: 'cae-settings-intro' }, '获取当前接口的模型列表，点击标签选择要使用的模型，再选择默认模型。保存后可在对话中切换。'),
         !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中配置模型。') :
           !values ? element('p', { role: failed ? 'alert' : 'status' }, message || '正在读取模型配置…') :
             element('form', { onSubmit: event => {
               event.preventDefault()
               void run(async () => {
-                await api.save({ ...values, models: models.split('\n').map(id => id.trim()).filter(Boolean) })
+                await api.save(values)
                 setMessage('已保存，正在重启后台服务…')
               })
             } },
               element('fieldset', { disabled: busy },
                 field('apiKey', 'API Key', 'password', values.hasApiKey ? '已保存，留空保留原密钥' : 'sk-…', '当前接口的访问密钥；本地 Ollama 可填写 ollama。'),
                 field('llmBaseUrl', 'API Base URL', 'url', 'https://api.deepseek.com/v1', '留空使用 DeepSeek。下方模型共用此接口和 API Key。'),
-                field('model', '默认模型 ID', 'text', 'deepseek-flash', '可以选择列表中的模型，也可以输入正确的模型 ID。'),
-                element('datalist', { id: 'cae-model-options' }, ...[...new Set(models.split('\n').map(id => id.trim()).filter(Boolean))].map(id => element('option', { key: id, value: id }))),
                 element('div', { className: 'cae-settings-field' },
-                  element('label', { htmlFor: 'cae-models' }, '可选模型列表'),
-                  element('div', { className: 'cae-settings-input-row' }, element('textarea', {
-                    id: 'cae-models', rows: 7, value: models, placeholder: '每行一个模型 ID', spellCheck: false,
-                    onChange: event => { setModels(event.target.value); setMessage('') },
+                  element('div', { className: 'cae-model-heading' },
+                    element('strong', { id: 'cae-model-list-title' }, '模型列表'),
+                    element('button', { type: 'button', onClick: () => void run(discover) }, values.availableModels.length ? '重新获取模型' : '获取模型列表'),
+                  ),
+                  values.availableModels.length > 0 && element('div', { className: 'cae-model-toolbar' },
+                    element('button', { type: 'button', onClick: () => select([...values.availableModels]) }, '全选'),
+                    element('button', { type: 'button', onClick: () => select([]) }, '全不选'),
+                    element('button', { type: 'button', 'aria-pressed': onlySelected, onClick: () => setOnlySelected(previous => !previous) }, '仅看已选'),
+                    element('span', { className: 'cae-model-count' }, `已选 ${values.models.length} / ${values.availableModels.length}`),
+                  ),
+                  values.availableModels.length > 8 && element('div', { className: 'cae-settings-input-row cae-model-search' }, element('input', {
+                    type: 'search', value: search, placeholder: '搜索模型', 'aria-label': '搜索模型',
+                    onChange: event => setSearch(event.target.value),
                   })),
-                  element('p', { className: 'cae-settings-hint' }, '可手动添加或删除，每行一个模型 ID。获取列表失败时仍可手动配置。默认模型会自动加入列表。'),
+                  element('div', { className: 'cae-model-list', role: 'group', 'aria-labelledby': 'cae-model-list-title' },
+                    ...visible.map(id => element('button', {
+                      key: id, type: 'button', className: 'cae-model-chip', 'aria-pressed': values.models.includes(id),
+                      title: checks[id]?.message || id,
+                      onClick: () => select(values.models.includes(id) ? values.models.filter(model => model !== id) : [...values.models, id]),
+                    }, values.models.includes(id) ? '✓ ' : '+ ', id, checks[id] && element('small', null, checks[id].status === 'available' ? '可用' : '待确认'))),
+                    !visible.length && element('p', { className: 'cae-model-empty' }, values.availableModels.length ? '没有符合条件的模型。' : '填写接口地址和 API Key 后，点击“获取模型列表”。'),
+                  ),
+                  element('div', { className: 'cae-model-test-row' },
+                    element('button', { type: 'button', disabled: !values.models.length || values.models.length > 50, onClick: () => void run(testSelected) }, '测试已选'),
+                    element('span', { className: 'cae-settings-hint' }, '发送简短请求，可能产生少量用量；每次最多 50 个。'),
+                  ),
+                  element('p', { className: 'cae-settings-hint' }, '重新获取会移除接口不再提供的模型；测试会移除明确不可用的模型。临时连接失败的模型会保留。'),
+                  Object.values(checks).filter(result => result.status !== 'available').map(result => element('p', { key: result.id, className: 'cae-settings-hint' }, `${result.id}：${result.message}`)),
+                ),
+                element('div', { className: 'cae-settings-field' },
+                  element('label', { htmlFor: 'cae-model' }, '默认模型'),
+                  element('div', { className: 'cae-settings-input-row' }, element('select', {
+                    id: 'cae-model', value: values.models.includes(values.model) ? values.model : '', disabled: !values.models.length,
+                    onChange: event => setValues(previous => ({ ...previous, model: event.target.value })),
+                  }, !values.models.length && element('option', { value: '' }, '请先选择要使用的模型'),
+                  ...values.models.map(id => element('option', { key: id, value: id }, id)))),
+                  element('p', { className: 'cae-settings-hint' }, '新对话默认使用此模型；只有已选模型会出现在对话菜单中。'),
                 ),
                 element('div', { className: 'cae-settings-actions' },
-                  element('button', { type: 'button', onClick: () => void run(async () => {
-                    setMessage('正在获取模型列表…')
-                    const discovered = await api.discover(values)
-                    setModels([...new Set([...models.split('\n').map(id => id.trim()).filter(Boolean), ...discovered])].join('\n'))
-                    setMessage(`已获取 ${discovered.length} 个模型，选择默认模型后保存即可。`)
-                  }) }, '获取模型列表'),
-                  element('button', { type: 'submit', className: 'cae-settings-primary' }, busy ? '处理中…' : '保存并重启'),
+                  element('button', { type: 'submit', className: 'cae-settings-primary', disabled: !values.models.length }, busy ? '处理中…' : '保存并重启'),
                 ),
               ),
               element('p', { role: failed ? 'alert' : 'status', className: 'cae-settings-message', 'data-failed': failed }, message),
@@ -305,11 +365,25 @@ window.__ModuleLoader__.load({
       .cae-settings-field { margin-bottom: 22px; }
       .cae-settings-field label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
       .cae-settings-input-row { display: flex; gap: 8px; }
-      .cae-settings-input-row input, .cae-settings-input-row textarea { flex: 1; min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; padding: 9px 10px; font: 12px/1.5 monospace; }
-      .cae-settings-input-row textarea { resize: vertical; }
+      .cae-settings-input-row input, .cae-settings-input-row select { flex: 1; min-width: 0; border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; background: transparent; color: inherit; padding: 9px 10px; font: 12px/1.5 monospace; }
+      .cae-settings-input-row select { width: 100%; }
+      .cae-settings-input-row select option { background: var(--dsw-alias-bg-layer-1, #fff); color: var(--dsw-alias-label-primary); }
+      .cae-model-heading, .cae-model-toolbar, .cae-model-test-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .cae-model-heading { justify-content: space-between; margin-bottom: 10px; font-size: 14px; }
+      .cae-model-toolbar { margin-bottom: 12px; }
+      .cae-model-toolbar button, .cae-model-test-row button { padding: 5px 10px; font-size: 12px; }
+      .cae-model-toolbar button[aria-pressed=true] { color: #2563eb; border-color: #2563eb; }
+      .cae-model-count { margin-left: auto; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+      .cae-model-search { margin-bottom: 10px; }
+      .cae-model-list { display: flex; align-content: flex-start; gap: 8px; flex-wrap: wrap; max-height: 240px; overflow-y: auto; padding: 3px; margin: -3px -3px 12px; }
+      .cae-simulation-settings .cae-model-chip { border-style: dashed; border-radius: 18px; padding: 6px 12px; white-space: normal; overflow-wrap: anywhere; text-align: left; font: 12px/1.6 monospace; }
+      .cae-simulation-settings .cae-model-chip[aria-pressed=true] { border-style: solid; border-color: #2563eb; background: #2563eb12; color: #2563eb; }
+      .cae-model-chip small { margin-left: 8px; font: 11px/1.4 sans-serif; color: var(--dsw-alias-label-tertiary); }
+      .cae-model-empty { border: 1px dashed var(--dsw-alias-border-l2); border-radius: 8px; width: 100%; margin: 0; padding: 20px 12px; text-align: center; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+      .cae-model-test-row { margin-bottom: 8px; }
       .cae-simulation-settings button { border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 8px 14px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
       .cae-simulation-settings button:hover { background: var(--dsw-alias-interactive-bg-hover); }
-      .cae-simulation-settings :is(button, input, textarea):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+      .cae-simulation-settings :is(button, input, select):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
       .cae-simulation-settings :disabled { opacity: .6; cursor: wait; }
       .cae-settings-hint, .cae-settings-path-status { font-size: 12px; line-height: 1.6; margin: 6px 0 0; color: var(--dsw-alias-label-tertiary); }
       .cae-settings-path-status[data-valid=true] { color: #16803c; }

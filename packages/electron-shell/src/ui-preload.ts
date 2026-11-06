@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('caeModels', {
   load: () => ipcRenderer.invoke('models:load'),
   save: (settings: unknown) => ipcRenderer.invoke('models:save', settings),
   discover: (settings: unknown) => ipcRenderer.invoke('models:discover', settings),
+  test: (settings: unknown) => ipcRenderer.invoke('models:test', settings),
 })
 
 contextBridge.exposeInMainWorld('caeSimulation', {

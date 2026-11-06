@@ -2,7 +2,7 @@ const assert = require('node:assert/strict')
 const { test } = require('node:test')
 const { once } = require('node:events')
 const { createServer } = require('node:http')
-const { DEFAULT_MODEL, parseModelSettings, parseModelConfiguration, discoverModels } = require('../dist/model-settings.js')
+const { DEFAULT_MODEL, parseModelSettings, parseModelConfiguration, discoverModels, testModels } = require('../dist/model-settings.js')
 
 const validSettings = {
   apiKey: 'sk-test-only',
@@ -76,14 +76,21 @@ test('rejects malformed IPC payloads', () => {
   }
 })
 
-test('migrates a single saved model and retains the default alongside deduplicated alternatives', () => {
+test('migrates a single saved model and validates selected models against the available catalog', () => {
   assert.deepEqual(parseModelConfiguration(validSettings).models, ['deepseek-flash'])
+  assert.deepEqual(parseModelConfiguration(validSettings).availableModels, ['deepseek-flash'])
   assert.deepEqual(parseModelConfiguration({
     ...validSettings, models: [' working-model ', 'deepseek-flash', 'working-model'],
-  }).models, ['deepseek-flash', 'working-model'])
+  }).models, ['working-model', 'deepseek-flash'])
   for (const models of [null, 'model', [null], [''], ['bad model'], ['bad\0model'], Array(1001).fill('model')]) {
     assert.throws(() => parseModelConfiguration({ ...validSettings, models }), /模型列表/)
   }
+  assert.throws(() => parseModelConfiguration({ ...validSettings, models: [] }), /至少选择一个模型/)
+  assert.throws(() => parseModelConfiguration({ ...validSettings, models: ['working-model'] }), /已选模型/)
+  assert.throws(() => parseModelConfiguration({ ...validSettings, models: [validSettings.model], availableModels: ['working-model'] }), /当前接口/)
+  const selected = parseModelConfiguration({ ...validSettings, models: [validSettings.model], availableModels: [validSettings.model, 'unselected-model'] })
+  assert.deepEqual(selected.models, [validSettings.model])
+  assert.deepEqual(selected.availableModels, [validSettings.model, 'unselected-model'])
 })
 
 test('discovers alternatives without requesting the unavailable default model', async t => {
@@ -102,7 +109,7 @@ test('discovers alternatives without requesting the unavailable default model', 
   assert.deepEqual(requests, [{ method: 'GET', path: '/gateway/v1/models', authorization: 'Bearer sk-test-only' }])
 })
 
-test('discovery failures allow manual configuration and do not expose response secrets', async t => {
+test('discovery failures preserve saved models and do not expose response secrets', async t => {
   let status = 401
   let body = '{"error":"private-response"}'
   const endpoint = createServer((_request, response) => {
@@ -119,7 +126,44 @@ test('discovery failures allow manual configuration and do not expose response s
     return true
   })
   status = 200
-  for (body of ['{}', '{"data":[]}', 'not-json']) {
-    await assert.rejects(discoverModels(settings), /手动填写模型 ID/)
+  for (body of ['{}', 'not-json']) {
+    await assert.rejects(discoverModels(settings), /有效的模型列表/)
   }
+  body = '{"data":[]}'
+  assert.deepEqual(await discoverModels(settings), [])
+})
+
+test('tests selected models and only removes definitive model failures, retaining transient errors', async t => {
+  const requests = []
+  const endpoint = createServer(async (request, response) => {
+    const chunks = []
+    for await (const chunk of request) chunks.push(chunk)
+    const body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    requests.push({ path: request.url, auth: request.headers.authorization, body })
+    const fixtures = {
+      working: [200, { choices: [{ message: { content: 'ok' } }] }],
+      missing: [404, { error: { code: 'model_not_found', message: 'private-response' } }],
+      forbidden: [403, { error: { message: 'You do not have access to model forbidden' } }],
+      embedding: [400, { error: { message: 'This model is not supported in the v1/chat/completions endpoint' } }],
+      limited: [429, { error: { message: 'private-response' } }],
+      auth: [401, { error: { message: 'private-response' } }],
+      gateway: [404, { error: { message: 'route not found' } }],
+      parameter: [400, { error: { message: 'unsupported parameter max_tokens' } }],
+      malformed: [200, { error: 'not a chat response' }],
+    }
+    const [status, result] = fixtures[body.model]
+    response.writeHead(status, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify(result))
+  })
+  endpoint.listen(0, '127.0.0.1')
+  await once(endpoint, 'listening')
+  t.after(() => new Promise(resolve => endpoint.close(resolve)))
+  const models = ['working', 'missing', 'forbidden', 'embedding', 'limited', 'auth', 'gateway', 'parameter', 'malformed']
+  const settings = { ...validSettings, model: 'working', models, llmBaseUrl: `http://127.0.0.1:${endpoint.address().port}/v1/` }
+  const results = await testModels(settings)
+  assert.deepEqual(results.map(result => result.status), ['available', 'unavailable', 'unavailable', 'unavailable', 'unknown', 'unknown', 'unknown', 'unknown', 'unknown'])
+  assert.equal(JSON.stringify(results).includes('private-response'), false)
+  assert.equal(requests.length, models.length)
+  assert.ok(requests.every(request => request.path === '/v1/chat/completions' && request.auth === 'Bearer sk-test-only' && request.body.max_tokens === 1 && request.body.stream === false))
+  await assert.rejects(testModels({ ...settings, models: Array.from({ length: 51 }, (_, index) => index ? `model-${index}` : 'working') }), /最多测试 50/)
 })

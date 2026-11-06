@@ -8,6 +8,7 @@ export interface ModelSettings {
 
 export interface ModelConfiguration extends ModelSettings {
   models: string[]
+  availableModels: string[]
 }
 
 export function parseModelSettings(raw: unknown): ModelSettings {
@@ -51,16 +52,23 @@ export function parseModelSettings(raw: unknown): ModelSettings {
 
 export function parseModelConfiguration(raw: unknown): ModelConfiguration {
   const settings = parseModelSettings(raw)
-  const models = (raw as Record<string, unknown>).models
-  if (models !== undefined && (!Array.isArray(models) || models.length > 1000 || models.some(id =>
+  const values = raw as Record<string, unknown>
+  const models = parseModelList(values.models === undefined ? [settings.model] : values.models)
+  const availableModels = parseModelList(values.availableModels === undefined ? models : values.availableModels)
+  if (!models.length) throw new Error('请至少选择一个模型。')
+  if (!models.includes(settings.model)) throw new Error('请从已选模型中选择默认模型。')
+  const available = new Set(availableModels)
+  if (models.some(id => !available.has(id))) throw new Error('所选模型已不在当前接口的列表中，请重新获取并选择。')
+  return { ...settings, models, availableModels }
+}
+
+function parseModelList(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length > 1000 || raw.some(id =>
     typeof id !== 'string' || !id.trim() || /[\s\0]/.test(id.trim()),
-  ))) {
-    throw new Error('模型列表格式无效，请填写模型 ID，每行一个。')
+  )) {
+    throw new Error('模型列表格式无效，请重新获取模型列表。')
   }
-  const alternatives = (models as string[] | undefined) ?? []
-  const normalized = [...new Set([settings.model, ...alternatives.map(id => id.trim())])]
-  if (normalized.length > 1000) throw new Error('模型列表最多支持 1000 个模型，请删除多余的模型 ID。')
-  return { ...settings, models: normalized }
+  return [...new Set(raw.map(id => id.trim()))]
 }
 
 export async function discoverModels(raw: unknown): Promise<string[]> {
@@ -74,19 +82,62 @@ export async function discoverModels(raw: unknown): Promise<string[]> {
       redirect: 'error',
     })
   } catch {
-    throw new Error('获取模型列表失败，请检查接口地址和网络，或手动填写模型 ID。')
+    throw new Error('获取模型列表失败，请检查接口地址和网络后重试。')
   }
-  if (!response.ok) throw new Error(`获取模型列表失败（HTTP ${response.status}），请检查 API Key 和接口地址，或手动填写模型 ID。`)
+  if (!response.ok) throw new Error(`获取模型列表失败（HTTP ${response.status}），请检查 API Key 和接口地址后重试。`)
   let body: unknown
   try {
     body = await response.json()
   } catch {
-    throw new Error('接口未返回有效的模型列表，请手动填写模型 ID。')
+    throw new Error('接口未返回有效的模型列表，请检查接口地址后重试。')
   }
   const entries = (body as { data?: unknown } | null)?.data
-  const models = Array.isArray(entries) ? [...new Set(entries.flatMap(entry =>
+  if (!Array.isArray(entries)) throw new Error('接口未返回有效的模型列表，请检查接口地址后重试。')
+  return [...new Set(entries.flatMap(entry =>
     entry && typeof entry.id === 'string' && entry.id && !/[\s\0]/.test(entry.id) ? [entry.id] : [],
-  ))].slice(0, 999) : []
-  if (!models.length) throw new Error('接口未返回可用模型，请手动填写模型 ID。')
-  return models
+  ))].slice(0, 1000)
+}
+
+export interface ModelCheck {
+  id: string
+  status: 'available' | 'unavailable' | 'unknown'
+  message: string
+}
+
+export async function testModels(raw: unknown): Promise<ModelCheck[]> {
+  const settings = parseModelConfiguration(raw)
+  if (settings.models.length > 50) throw new Error('每次最多测试 50 个模型，请减少所选模型后重试。')
+  const url = `${(settings.llmBaseUrl || 'https://api.deepseek.com/v1').replace(/\/+$/, '')}/chat/completions`
+  const results: ModelCheck[] = []
+  async function check(id: string): Promise<ModelCheck> {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${settings.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Hi' }], max_tokens: 1, stream: false }),
+        signal: AbortSignal.timeout(15_000),
+        redirect: 'error',
+      })
+      const body = await response.json().catch(() => null)
+      if (response.ok && Array.isArray(body?.choices) && body.choices.length) {
+        return { id, status: 'available', message: '测试通过' }
+      }
+      const code = typeof body?.error?.code === 'string' ? body.error.code : ''
+      const message = typeof body?.error?.message === 'string' ? body.error.message : ''
+      const unavailable = [400, 403, 404, 410, 422].includes(response.status) && (
+        /^(model_not_found|invalid_model|unsupported_model|model_not_supported|model_not_available|model_access_denied)$/.test(code) ||
+        /model.{0,100}(not.{0,20}(exist|found|available|supported)|does not exist|no.{0,20}(access|permission)|access denied|permission denied|disabled|retired)/i.test(message) ||
+        /(no access|not have access|no permission|permission denied|access denied).{0,100}model/i.test(message) ||
+        /模型.{0,60}(不存在|不可用|已下线|已停用|无权限|没有权限|不支持.{0,10}(对话|聊天))/.test(message)
+      )
+      if (unavailable) return { id, status: 'unavailable', message: '模型不存在、不支持对话或无访问权限' }
+      return { id, status: 'unknown', message: `暂时无法确认（HTTP ${response.status}），已保留` }
+    } catch {
+      return { id, status: 'unknown', message: '连接失败或超时，已保留' }
+    }
+  }
+  for (let index = 0; index < settings.models.length; index += 3) {
+    results.push(...await Promise.all(settings.models.slice(index, index + 3).map(check)))
+  }
+  return results
 }
