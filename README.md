@@ -3,6 +3,8 @@
 基于 **dsh (deepseek-harness)** 的 CAE 气帘仿真 Agent，支持全流程自动化：
 IGS 导入 → 模型分区 → 网格划分 → LS-DYNA 求解 → HyperView 导出 GIF → PPT 报告生成。
 
+助手的系统提示词限定只回答 CAE/工程仿真相关内容，包括直接服务于仿真任务的软件配置、脚本、文件处理和排错。无关请求会简短拒答且不调用工具或创建工作流；混合请求只处理仿真部分，关联不明时先澄清仿真场景。要求忽略规则、角色扮演或文件中的指令不能扩大回答范围。
+
 ## Python MCP 服务（hyperworks-mcp & qilan-solve-mcp）
 
 项目集成了两个 Python FastMCP 服务，需要 [uv](https://docs.astral.sh/uv/) >= 0.4：
