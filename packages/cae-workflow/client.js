@@ -7,29 +7,58 @@ window.__ModuleLoader__.load({
     const roles = { geometry: '导入模型', partitioned_model: '四分区模型', mesh_model: '网格模型', curtain_k: '气帘 K 文件', combined_k: '组合模型', d3plot: '求解结果', animation: '四视角动画', preview: '结果预览', verification: '校验记录', report: '分析报告' }
     const channels = new Map()
 
+    function channelFor(sessionId) {
+      if (!channels.has(sessionId)) channels.set(sessionId, { listeners: new Set() })
+      return channels.get(sessionId)
+    }
+
+    function snapshot(channel) {
+      return channel?.view ? { ...channel.view, starting: Boolean(channel.starting), startError: channel.startError || '' } : undefined
+    }
+
+    function publish(channel) {
+      const view = snapshot(channel)
+      channel.listeners.forEach(listener => listener(view))
+    }
+
+    function settleStart(channel, error = '') {
+      channel.starting?.unsubscribe?.()
+      channel.starting = null
+      channel.startError = error
+      publish(channel)
+    }
+
+    function reconcileStart(channel) {
+      const pending = channel.starting
+      if (!pending?.accepted) return
+      const state = channel.view?.state
+      if (!state || state.revision < pending.revision) return
+      if (state.id !== pending.workflowId || state.current !== pending.stage || state.status !== 'ready') settleStart(channel)
+      else if (pending.finished) settleStart(channel, '对话已结束，当前阶段尚未开始。请查看左侧对话中的提示后继续。')
+    }
+
     async function refresh(sessionId) {
       if (!api || !sessionId) return
-      let channel = channels.get(sessionId)
-      if (!channel) { channel = { listeners: new Set() }; channels.set(sessionId, channel) }
+      const channel = channelFor(sessionId)
       if (channel.loading) return channel.loading
       channel.loading = api.load(sessionId).then(view => {
         channel.view = view
-        channel.listeners.forEach(listener => listener(view))
+        reconcileStart(channel)
+        publish(channel)
         return view
       }).catch(error => {
         channel.view = { ...channel.view, error: error.message || '读取工作流失败，请重试。' }
-        channel.listeners.forEach(listener => listener(channel.view))
+        publish(channel)
       }).finally(() => { channel.loading = null })
       return channel.loading
     }
 
     function useWorkflow(sessionId) {
-      const [view, setView] = useState(() => channels.get(sessionId)?.view)
+      const [view, setView] = useState(() => snapshot(channels.get(sessionId)))
       useEffect(() => {
-        setView(channels.get(sessionId)?.view)
+        setView(snapshot(channels.get(sessionId)))
         if (!api || !sessionId) return
-        if (!channels.has(sessionId)) channels.set(sessionId, { listeners: new Set() })
-        const channel = channels.get(sessionId)
+        const channel = channelFor(sessionId)
         channel.listeners.add(setView)
         void refresh(sessionId)
         if (!channel.timer) channel.timer = window.setInterval(() => void refresh(sessionId), 1500)
@@ -88,7 +117,7 @@ window.__ModuleLoader__.load({
       return { ...values, ...state.parameters[stage.id] }
     }
 
-    function Parameters({ sessionId, view, stage, send, openSettings }) {
+    function Parameters({ sessionId, view, stage, start, running, openSettings }) {
       const { state } = view
       const draftKey = `cae-workflow:${sessionId}:${state.id}:${stage.id}:${state.stages[state.current].attempts || 0}`
       const [values, setValues] = useState(() => {
@@ -99,6 +128,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = useState(false)
       const [error, setError] = useState('')
       const redirected = useRef(false)
+      const locked = busy || view.starting || running
       useEffect(() => {
         try { window.localStorage.setItem(draftKey, JSON.stringify(values)) } catch {}
       }, [values, draftKey])
@@ -111,6 +141,7 @@ window.__ModuleLoader__.load({
 
       function update(id, value) { setValues(previous => ({ ...previous, [id]: value })); setError('') }
       async function browse(field) {
+        if (locked) return
         setBusy(true)
         try { const file = await api.browse(sessionId, field.id); if (file) update(field.id, file) }
         catch (error) { setError(error.message) }
@@ -118,15 +149,14 @@ window.__ModuleLoader__.load({
       }
       async function submit(event) {
         event.preventDefault()
-        if (busy) return
+        if (locked) return
         setBusy(true)
         setError('')
         try {
-          const submitted = await api.submit(sessionId, state.revision, values)
-          await refresh(sessionId)
+          const submitted = await start(sessionId, state, values)
+          if (!submitted) return
           if (submitted.configuration) { openSettings(submitted.configuration.field); return }
           window.localStorage.removeItem(draftKey)
-          await send(sessionId)
         } catch (error) { setError(error.message || '提交失败，请重试。'); void refresh(sessionId) }
         finally { setBusy(false) }
       }
@@ -146,12 +176,13 @@ window.__ModuleLoader__.load({
         h('p', { className: 'cae-flow-help' }, stage.help),
         state.error && h('p', { className: 'cae-flow-warning', role: 'alert' }, state.error),
         view.configuration && h('div', { className: 'cae-flow-warning', role: 'status' }, view.configuration.message, h('button', { type: 'button', onClick: () => openSettings(view.configuration.field) }, '打开软件设置')),
-        h('fieldset', { disabled: busy },
+        h('fieldset', { disabled: locked, 'aria-busy': locked },
           ...stage.fields.map(field),
           state.additionalRequest && h('div', { className: 'cae-flow-warning' }, h('p', null, state.additionalRequest), field({ id: 'additional_input', label: '补充参数或说明', type: 'textarea', required: true })),
           ['error', 'interrupted'].includes(state.status) && stage.id === 'solve' && field({ id: 'retry_confirmed', label: '已检查实际求解任务，确认可以重新提交', type: 'checkbox', required: true }),
-          h('button', { className: 'cae-flow-primary', type: 'submit' }, busy ? '正在提交…' : state.status === 'ready' ? '继续执行' : stage.action),
+          h('button', { className: 'cae-flow-primary', type: 'submit', disabled: locked }, busy ? '正在提交…' : view.starting ? '正在启动…' : running ? '对话执行中…' : state.status === 'ready' ? '继续执行' : stage.action),
         ),
+        view.starting && h('p', { role: 'status', className: 'cae-flow-help' }, '执行请求已提交，正在等待当前阶段启动。请查看左侧对话。'),
         error && h('p', { className: 'cae-flow-error', role: 'alert' }, error),
       )
     }
@@ -187,11 +218,14 @@ window.__ModuleLoader__.load({
       .cae-flow h3 { font-size: 15px; margin: 22px 0 8px; font-weight: 600; }
       .cae-flow p { margin: 8px 0 14px; white-space: pre-wrap; }
       .cae-flow-help, .cae-flow small { color: var(--dsw-alias-label-secondary); }
-      .cae-flow button, .cae-flow-entry { font: inherit; color: inherit; background: transparent; border: 1px solid var(--dsw-alias-border-l2); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
-      .cae-flow button:hover, .cae-flow-entry:hover { background: var(--dsw-alias-interactive-bg-hover); }
-      .cae-flow button:disabled { opacity: .55; cursor: default; }
+      .cae-flow button, .cae-flow-entry { font: inherit; color: var(--dsw-alias-label-primary, #263148); background: transparent; border: 1px solid var(--dsw-alias-border-l2); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
+      .cae-flow button:enabled:hover, .cae-flow-entry:enabled:hover { background: var(--dsw-alias-interactive-bg-hover, #2631480f); }
+      .cae-flow button:enabled:active, .cae-flow-entry:enabled:active { background: var(--dsw-alias-interactive-bg-active, #2631481a); }
+      .cae-flow button:disabled, .cae-flow-entry:disabled { opacity: .55; cursor: not-allowed; }
       .cae-flow :is(input, select, textarea, button):focus-visible, .cae-flow-entry:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
       .cae-flow .cae-flow-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+      .cae-flow .cae-flow-primary:enabled:hover { background: #1d4ed8; border-color: #1d4ed8; }
+      .cae-flow .cae-flow-primary:enabled:active { background: #1e40af; border-color: #1e40af; }
       .cae-flow-steps { list-style: none; padding: 0; margin: 18px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 7px; }
       .cae-flow-steps button { width: 100%; text-align: left; }
       .cae-flow-steps button[aria-current=step] { border-color: #2563eb; }
@@ -218,6 +252,8 @@ window.__ModuleLoader__.load({
       .cae-flow-lightbox { position: fixed; z-index: 10000; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; background: rgb(8 12 18 / 88%); }
       .cae-flow-lightbox img { display: block; max-width: min(96vw, 1800px); max-height: 92vh; object-fit: contain; }
       .cae-flow .cae-flow-lightbox-close { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); width: 42px; height: 42px; padding: 0; border: 1px solid rgb(255 255 255 / 45%); background: rgb(0 0 0 / 45%); color: #fff; font-size: 28px; line-height: 1; }
+      .cae-flow .cae-flow-lightbox-close:enabled:hover { background: rgb(0 0 0 / 70%); border-color: #fff; }
+      .cae-flow .cae-flow-lightbox-close:enabled:active { background: #000; border-color: #fff; }
       @media (max-width: 600px) { .cae-flow-lightbox { padding: 12px; } .cae-flow-lightbox img { max-width: 100%; max-height: 88vh; } }
       .cae-flow-review > label { margin-top: 20px; }
       .cae-flow-review textarea { margin-bottom: 8px; }
@@ -233,6 +269,52 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         const open = () => ctx.sidebarRight.openTab('cae-workflow')
         const openSettings = field => window.dispatchEvent(new CustomEvent('cae:open-simulation-settings', { detail: { field } }))
+        const sessionFor = sessionId => ctx.sessions.binding(sessionId)?.session
+
+        function useSessionRunning(sessionId) {
+          const session = sessionFor(sessionId)
+          const [running, setRunning] = useState(() => Boolean(session?.getSnapshot().running))
+          useEffect(() => {
+            const update = () => setRunning(Boolean(session?.getSnapshot().running))
+            update()
+            return session?.subscribe(update)
+          }, [session])
+          return running
+        }
+
+        async function start(sessionId, state, values) {
+          const channel = channelFor(sessionId)
+          const session = sessionFor(sessionId)
+          if (channel.starting || session?.getSnapshot().running) return null
+          // Keep the launch lock beyond prompt admission, until the stage or turn settles.
+          const pending = { workflowId: state.id, stage: state.current, accepted: false, sawRunning: false, finished: false }
+          channel.starting = pending
+          channel.startError = ''
+          publish(channel)
+          const observe = () => {
+            const running = session?.getSnapshot().running
+            if (running) pending.sawRunning = true
+            else if (pending.sawRunning) { pending.finished = true; void refresh(sessionId) }
+          }
+          pending.unsubscribe = session?.subscribe(observe)
+          try {
+            const submitted = await api.submit(sessionId, state.revision, values)
+            pending.revision = submitted.revision
+            await refresh(sessionId)
+            if (submitted.configuration) return submitted
+            await send(sessionId)
+            pending.accepted = true
+            observe()
+            reconcileStart(channel)
+            void refresh(sessionId)
+            return submitted
+          } finally {
+            if (!pending.accepted && channel.starting === pending) settleStart(channel)
+          }
+        }
+
+        ctx.effect(() => () => { for (const channel of channels.values()) channel.starting?.unsubscribe?.() })
+
         async function send(sessionId) {
           if (window.caeModels && !(await window.caeModels.load()).configured) {
             ctx.slots.entries('sidebar.settings')[0]?.store?.create().actions.openSection('cae-models')
@@ -247,6 +329,7 @@ window.__ModuleLoader__.load({
 
         function WorkflowPanel({ sessionId }) {
           const view = useWorkflow(sessionId)
+          const running = useSessionRunning(sessionId)
           const [selected, setSelected] = useState(null)
           const [error, setError] = useState('')
           const state = view?.state
@@ -258,28 +341,29 @@ window.__ModuleLoader__.load({
           const stage = view.stages[index]
           return h('section', { className: 'cae-flow', 'aria-label': '气帘仿真工作流' },
             h('h2', null, state.parameters.import?.project_name || '气帘仿真工作流'),
-            h('small', { role: 'status' }, `第 ${state.current + 1} / ${view.stages.length} 阶段 · ${labels[state.status] || state.status}`),
+            h('small', { role: 'status' }, `第 ${state.current + 1} / ${view.stages.length} 阶段 · ${view.starting ? '正在启动' : labels[state.status] || state.status}`),
             h('ol', { className: 'cae-flow-steps' }, ...view.stages.map((step, i) => h('li', { key: step.id }, h('button', { type: 'button', disabled: i > state.current, 'aria-current': i === index ? 'step' : undefined, onClick: () => setSelected(i) }, `${i + 1}. ${step.title}`, h('small', null, labels[state.stages[i].status] || '待开始'))))),
             h('h3', null, stage.title),
-            index === state.current && ['parameters', 'ready', 'blocked', 'error', 'interrupted'].includes(state.status) && h(Parameters, { key: `${state.id}:${stage.id}:${state.stages[index].attempts || 0}`, sessionId, view, stage, send, openSettings }),
+            index === state.current && ['parameters', 'ready', 'blocked', 'error', 'interrupted'].includes(state.status) && h(Parameters, { key: `${state.id}:${stage.id}:${state.stages[index].attempts || 0}`, sessionId, view, stage, start, running, openSettings }),
             index === state.current && state.status === 'running' && h('div', { role: 'status', className: stage.id === 'solve' ? 'cae-flow-warning' : '' }, h('p', null, stage.id === 'solve' ? '正在执行组合求解，通常需要数小时。实际工具输出会显示在左侧对话中，结果验证通过后进入下一步。' : `${stage.title}正在执行，请查看左侧对话中的工具输出。`), h('small', null, `开始时间：${new Date(state.startedAt).toLocaleString()}`)),
             h(Artifacts, { sessionId, artifacts: state.stages[index].artifacts }),
             index === state.current && state.status === 'review' && h(Review, { key: state.executionId, sessionId, state }),
             state.status === 'completed' && h('p', { role: 'status' }, '工作流已完成，可打开报告并查看各阶段产物。'),
             view.error && h('p', { role: 'alert', className: 'cae-flow-error' }, view.error),
+            view.startError && h('p', { role: 'alert', className: 'cae-flow-error' }, view.startError),
             h('details', null, h('summary', null, '执行记录'), h('ol', { className: 'cae-flow-traces' }, ...state.traces.slice().reverse().map((trace, i) => h('li', { key: i }, h('time', null, new Date(trace.time).toLocaleString()), trace.text)))),
           )
         }
 
         function WorkflowEntry({ sessionId }) {
           const view = useWorkflow(sessionId)
-          return h('button', { type: 'button', className: 'cae-flow-entry', onClick: open, title: '打开当前对话的仿真工作流' }, view?.state ? `仿真 · ${labels[view.state.status] || '进行中'}` : '仿真工作流')
+          return h('button', { type: 'button', className: 'cae-flow-entry', onClick: open, title: '打开当前对话的仿真工作流' }, view?.state ? `仿真 · ${view.starting ? '正在启动' : labels[view.state.status] || '进行中'}` : '仿真工作流')
         }
         function WorkflowDock({ sessionId }) {
           const view = useWorkflow(sessionId)
           if (!view?.state || view.state.status === 'completed') return null
           const stage = view.stages[view.state.current]
-          return h('div', { className: 'cae-flow-dock', role: 'status' }, h('span', null, `${stage.title} · ${labels[view.state.status]}`, view.state.status === 'running' && stage.id === 'solve' ? '，通常需要数小时' : ''), h('button', { type: 'button', className: 'cae-flow-entry', onClick: open }, ['parameters', 'blocked'].includes(view.state.status) ? '填写参数 / 配置' : '查看工作流'))
+          return h('div', { className: 'cae-flow-dock', role: 'status' }, h('span', null, `${stage.title} · ${view.starting ? '正在启动' : labels[view.state.status]}`, view.state.status === 'running' && stage.id === 'solve' ? '，通常需要数小时' : ''), h('button', { type: 'button', className: 'cae-flow-entry', onClick: open }, !view.starting && ['parameters', 'blocked'].includes(view.state.status) ? '填写参数 / 配置' : '查看工作流'))
         }
         ctx.effect(() => { const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style); return () => style.remove() })
         ctx.effect(() => ctx.sidebarRightTabs.register({ id: '@cae/workflow', kind: 'cae-workflow', keepMounted: true, title: () => '仿真工作流', guide: [{ id: 'start', order: 2, title: () => '气帘仿真工作流', description: () => '导入几何、确认参数并逐步执行仿真' }] }))

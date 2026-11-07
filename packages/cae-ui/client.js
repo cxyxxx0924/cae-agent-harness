@@ -478,6 +478,8 @@ window.__ModuleLoader__.load({
       .cae-model-list { display: flex; align-content: flex-start; gap: 8px; flex-wrap: wrap; max-height: 240px; overflow-y: auto; padding: 3px; margin: -3px -3px 12px; }
       .cae-simulation-settings .cae-model-chip { border-style: dashed; border-radius: 18px; padding: 6px 12px; white-space: normal; overflow-wrap: anywhere; text-align: left; font: 12px/1.6 monospace; }
       .cae-simulation-settings .cae-model-chip[aria-pressed=true] { border-style: solid; border-color: #2563eb; background: #2563eb12; color: #2563eb; }
+      .cae-simulation-settings .cae-model-chip[aria-pressed=true]:enabled:hover { background: #2563eb24; }
+      .cae-simulation-settings .cae-model-chip[aria-pressed=true]:enabled:active { background: #2563eb33; }
       .cae-model-chip small { margin-left: 8px; font: 11px/1.4 sans-serif; color: var(--dsw-alias-label-tertiary); }
       .cae-custom-model { border-top: 1px solid var(--dsw-alias-border-l2); padding-top: 12px; margin-top: 4px; }
       .cae-custom-model > strong { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 500; }
@@ -487,18 +489,22 @@ window.__ModuleLoader__.load({
       .cae-model-empty { border: 1px dashed var(--dsw-alias-border-l2); border-radius: 8px; width: 100%; margin: 0; padding: 20px 12px; text-align: center; color: var(--dsw-alias-label-tertiary); font-size: 12px; }
       .cae-model-test-row { margin-bottom: 8px; }
       .cae-simulation-settings button { border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px; padding: 8px 14px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap; }
-      .cae-simulation-settings button:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .cae-simulation-settings button:enabled:hover { background: var(--dsw-alias-interactive-bg-hover, #2631480f); }
+      .cae-simulation-settings button:enabled:active { background: var(--dsw-alias-interactive-bg-active, #2631481a); }
       .cae-simulation-settings :is(button, input, select):focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
-      .cae-simulation-settings :disabled { opacity: .6; cursor: wait; }
+      .cae-simulation-settings :is(button, input, select):disabled { opacity: .6; cursor: not-allowed; }
       .cae-settings-hint, .cae-settings-path-status { font-size: 12px; line-height: 1.6; margin: 6px 0 0; color: var(--dsw-alias-label-tertiary); }
       .cae-settings-path-status[data-valid=true] { color: #16803c; }
       .cae-settings-path-status[data-valid=false], .cae-settings-message[data-failed=true] { color: #dc2626; }
       .cae-settings-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; }
       .cae-simulation-settings .cae-settings-primary { background: #2563eb; border-color: #2563eb; color: white; }
-      .cae-simulation-settings .cae-settings-primary:hover { background: #1d4ed8; }
+      .cae-simulation-settings .cae-settings-primary:enabled:hover { background: #1d4ed8; border-color: #1d4ed8; }
+      .cae-simulation-settings .cae-settings-primary:enabled:active { background: #1e40af; border-color: #1e40af; }
       .cae-settings-message { min-height: 22px; margin: 12px 0 0; font-size: 13px; line-height: 1.7; }
       .cae-configure-model { display: inline-flex; align-items: center; gap: 8px; padding: 5px 8px; border: none; border-radius: 6px; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; }
-      .cae-configure-model:hover { background: var(--dsw-alias-interactive-bg-hover); }
+      .cae-configure-model:enabled:hover { background: var(--dsw-alias-interactive-bg-hover, #2631480f); }
+      .cae-configure-model:enabled:active { background: var(--dsw-alias-interactive-bg-active, #2631481a); }
+      .cae-configure-model:disabled { opacity: .6; cursor: not-allowed; }
       .cae-configure-model:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
       @media (max-width: 520px) { .cae-settings-choice-row { grid-template-columns: 1fr; } .cae-settings-input-row { flex-wrap: wrap; } }
     `
