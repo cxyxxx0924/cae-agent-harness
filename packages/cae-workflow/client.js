@@ -70,6 +70,34 @@ window.__ModuleLoader__.load({
       return view
     }
 
+    function stageCard(step, position, view, selected, select) {
+      const current = position === view.state.current
+      const status = current && view.starting ? 'starting' : view.state.stages[position].status || 'pending'
+      const label = status === 'starting' ? '正在启动' : labels[status] || status
+      const done = ['done', 'completed'].includes(status)
+      const active = ['running', 'starting'].includes(status)
+      const attention = ['blocked', 'review', 'error', 'interrupted'].includes(status)
+      const icon = done
+        ? h('svg', { viewBox: '0 0 20 20', fill: 'none' }, h('path', { d: 'm5 10 3.25 3.25L15 6.5', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }))
+        : attention ? '!' : active ? null : String(position + 1).padStart(2, '0')
+      return h('li', { key: step.id },
+        h('button', {
+          type: 'button', className: 'cae-flow-step', disabled: position > view.state.current,
+          'data-status': status, 'data-selected': selected,
+          'aria-current': current ? 'step' : undefined,
+          'aria-label': `${position + 1}. ${step.title}，${label}${selected ? '，当前查看' : ''}`,
+          onClick: () => select(position),
+        },
+          h('span', { className: 'cae-flow-step-top', 'aria-hidden': true },
+            h('span', { className: `cae-flow-step-icon${active ? ' cae-flow-step-spinner' : ''}` }, icon),
+            (current || selected) && h('span', { className: 'cae-flow-step-marker' }, current ? '当前阶段' : '查看中'),
+          ),
+          h('span', { className: 'cae-flow-step-title' }, step.title),
+          h('small', { className: 'cae-flow-step-status' }, h('span', { className: 'cae-flow-step-dot', 'aria-hidden': true }), label),
+        ),
+      )
+    }
+
     function Preview({ sessionId, artifact, onOpen }) {
       const [source, setSource] = useState('')
       useEffect(() => {
@@ -213,7 +241,8 @@ window.__ModuleLoader__.load({
     }
 
     const css = `
-      .cae-flow { height: 100%; overflow: auto; box-sizing: border-box; padding: 20px; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+      .cae-flow { --cae-flow-accent: #2563eb; --cae-flow-success: #187a4d; --cae-flow-warning: #986012; --cae-flow-danger: #c23b42; height: 100%; overflow: auto; box-sizing: border-box; padding: 20px; color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+      body[data-ds-dark-theme] .cae-flow { --cae-flow-accent: #7aaaff; --cae-flow-success: #66d39a; --cae-flow-warning: #f5c16c; --cae-flow-danger: #ff929a; }
       .cae-flow h2 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
       .cae-flow h3 { font-size: 15px; margin: 22px 0 8px; font-weight: 600; }
       .cae-flow p { margin: 8px 0 14px; white-space: pre-wrap; }
@@ -226,10 +255,32 @@ window.__ModuleLoader__.load({
       .cae-flow .cae-flow-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
       .cae-flow .cae-flow-primary:enabled:hover { background: #1d4ed8; border-color: #1d4ed8; }
       .cae-flow .cae-flow-primary:enabled:active { background: #1e40af; border-color: #1e40af; }
-      .cae-flow-steps { list-style: none; padding: 0; margin: 18px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 7px; }
-      .cae-flow-steps button { width: 100%; text-align: left; }
-      .cae-flow-steps button[aria-current=step] { border-color: #2563eb; }
-      .cae-flow-steps small { display: block; font-size: 11px; }
+      .cae-flow-steps { list-style: none; padding: 0; margin: 20px 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr)); gap: 8px; }
+      .cae-flow-steps > li { min-width: 0; }
+      .cae-flow .cae-flow-step { --cae-step-tone: var(--cae-flow-accent); --cae-step-tint: 4%; --cae-step-surface: linear-gradient(145deg, color-mix(in srgb, var(--cae-step-tone) var(--cae-step-tint), transparent), transparent); position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: flex-start; gap: 9px; width: 100%; height: 100%; min-height: 124px; padding: 12px; overflow: hidden; box-sizing: border-box; border-radius: 11px; border-color: color-mix(in srgb, var(--cae-step-tone) 22%, transparent); background: var(--cae-step-surface); text-align: left; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
+      .cae-flow .cae-flow-step:disabled { opacity: 1; }
+      .cae-flow .cae-flow-step:enabled:hover { background: var(--cae-step-surface) color-mix(in srgb, var(--cae-step-tone) 7%, transparent); border-color: color-mix(in srgb, var(--cae-step-tone) 55%, transparent); }
+      .cae-flow .cae-flow-step:enabled:active { background: var(--cae-step-surface) color-mix(in srgb, var(--cae-step-tone) 12%, transparent); }
+      .cae-flow .cae-flow-step[data-selected=true] { border-color: color-mix(in srgb, var(--cae-step-tone) 65%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cae-step-tone) 14%, transparent), 0 2px 8px color-mix(in srgb, var(--cae-step-tone) 6%, transparent); }
+      .cae-flow .cae-flow-step[data-status=pending] { --cae-step-tone: var(--dsw-alias-label-tertiary, #81858c); --cae-step-tint: 3%; border-color: var(--dsw-alias-border-l2); border-style: dashed; }
+      .cae-flow-step[data-status=pending] .cae-flow-step-title { color: var(--dsw-alias-label-secondary); font-weight: 500; }
+      .cae-flow .cae-flow-step:is([data-status=running], [data-status=starting]) { --cae-step-tint: 12%; border-color: color-mix(in srgb, var(--cae-step-tone) 65%, transparent); }
+      .cae-flow .cae-flow-step:is([data-status=done], [data-status=completed]) { --cae-step-tone: var(--cae-flow-success); --cae-step-tint: 7%; }
+      .cae-flow .cae-flow-step:is([data-status=blocked], [data-status=review], [data-status=interrupted]) { --cae-step-tone: var(--cae-flow-warning); --cae-step-tint: 7%; }
+      .cae-flow .cae-flow-step[data-status=error] { --cae-step-tone: var(--cae-flow-danger); --cae-step-tint: 7%; }
+      .cae-flow-step-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; min-height: 27px; }
+      .cae-flow-step-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 27px; height: 27px; box-sizing: border-box; border-radius: 8px; color: var(--cae-step-tone); background: color-mix(in srgb, var(--cae-step-tone) 10%, transparent); font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; }
+      .cae-flow-step-icon svg { display: block; width: 18px; height: 18px; }
+      .cae-flow-step-marker { color: var(--cae-step-tone); font-size: 10px; line-height: 1.3; white-space: nowrap; }
+      .cae-flow-step-title { color: var(--dsw-alias-label-primary); font-size: 13px; line-height: 1.5; font-weight: 600; }
+      .cae-flow .cae-flow-step-status { display: inline-flex; align-items: center; gap: 5px; margin-top: auto; color: var(--cae-step-tone); font-size: 11px; line-height: 1.4; }
+      .cae-flow-step-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+      .cae-flow-step[data-status=pending] .cae-flow-step-dot { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+      .cae-flow-step-spinner::after { content: ''; width: 13px; height: 13px; box-sizing: border-box; border: 1.8px solid color-mix(in srgb, currentColor 24%, transparent); border-top-color: currentColor; border-radius: 50%; animation: cae-flow-spin .9s linear infinite; }
+      .cae-flow-step:is([data-status=running], [data-status=starting])::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--cae-step-tone), transparent); animation: cae-flow-scan 2.6s ease-in-out infinite; pointer-events: none; }
+      @keyframes cae-flow-spin { to { transform: rotate(360deg); } }
+      @keyframes cae-flow-scan { 0% { transform: translateX(-100%); opacity: 0; } 20%, 80% { opacity: .8; } 100% { transform: translateX(100%); opacity: 0; } }
+      @media (prefers-reduced-motion: reduce) { .cae-flow .cae-flow-step { transition: none; } .cae-flow-step-spinner::after, .cae-flow-step:is([data-status=running], [data-status=starting])::after { animation: none; } }
       .cae-flow fieldset { border: 0; padding: 0; min-width: 0; }
       .cae-flow-field { margin: 16px 0; }
       .cae-flow-field label, .cae-flow-review > label { display: block; margin-bottom: 6px; font-weight: 500; }
@@ -342,7 +393,7 @@ window.__ModuleLoader__.load({
           return h('section', { className: 'cae-flow', 'aria-label': '气帘仿真工作流' },
             h('h2', null, state.parameters.import?.project_name || '气帘仿真工作流'),
             h('small', { role: 'status' }, `第 ${state.current + 1} / ${view.stages.length} 阶段 · ${view.starting ? '正在启动' : labels[state.status] || state.status}`),
-            h('ol', { className: 'cae-flow-steps' }, ...view.stages.map((step, i) => h('li', { key: step.id }, h('button', { type: 'button', disabled: i > state.current, 'aria-current': i === index ? 'step' : undefined, onClick: () => setSelected(i) }, `${i + 1}. ${step.title}`, h('small', null, labels[state.stages[i].status] || '待开始'))))),
+            h('ol', { className: 'cae-flow-steps', 'aria-label': '仿真阶段' }, ...view.stages.map((step, i) => stageCard(step, i, view, i === index, setSelected))),
             h('h3', null, stage.title),
             index === state.current && ['parameters', 'ready', 'blocked', 'error', 'interrupted'].includes(state.status) && h(Parameters, { key: `${state.id}:${stage.id}:${state.stages[index].attempts || 0}`, sessionId, view, stage, start, running, openSettings }),
             index === state.current && state.status === 'running' && h('div', { role: 'status', className: stage.id === 'solve' ? 'cae-flow-warning' : '' }, h('p', null, stage.id === 'solve' ? '正在执行组合求解，通常需要数小时。实际工具输出会显示在左侧对话中，结果验证通过后进入下一步。' : `${stage.title}正在执行，请查看左侧对话中的工具输出。`), h('small', null, `开始时间：${new Date(state.startedAt).toLocaleString()}`)),
