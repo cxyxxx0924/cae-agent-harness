@@ -41,5 +41,6 @@ WORKDIR="$WORKDIR" HM_OUT=partitioned.hm "$HMBATCH" -tcl "$S/t08_verify_partitio
 if grep -q "VERIFY_FAIL=0" "$WORKDIR/out/verify_partitioned.txt"; then
   echo "[AUTO2] DONE: VERIFY_FAIL=0 -> $WORKDIR/partitioned.hm"
 else
-  echo "[AUTO2] WARN: VERIFY_FAIL!=0, 见 $WORKDIR/out/verify_partitioned.txt"
+  echo "[AUTO2] FAIL: VERIFY_FAIL!=0, 见 $WORKDIR/out/verify_partitioned.txt 和 partition_geometry.json"
+  exit 1
 fi

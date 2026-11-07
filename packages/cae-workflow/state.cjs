@@ -2,6 +2,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { createHash, randomUUID } = require('node:crypto')
 const { STAGES } = require('./fields.cjs')
+const { evidencePassed, partitionGeometryPassed } = require('./gates.cjs')
+const { prepareMeshRecovery, reusableMeshArtifact, samePath, sha256 } = require('./mesh-recovery.cjs')
 
 const copy = value => JSON.parse(JSON.stringify(value))
 const now = () => new Date().toISOString()
@@ -205,6 +207,8 @@ class WorkflowStore {
         const source = state.stages[1].artifacts.find(artifact => artifact.role === 'partitioned_model')?.path
         if (!source || !localFile(source)) throw new Error('缺少已确认的分区模型。')
         fs.mkdirSync(path.join(jobDirectory, 'input'), { recursive: true })
+        state.meshRecovery = prepareMeshRecovery(state, source, state.parameters.mesh)
+        fs.writeFileSync(path.join(jobDirectory, 'mesh.recovery.json'), JSON.stringify(state.meshRecovery, null, 2))
         fs.copyFileSync(source, path.join(jobDirectory, 'input', 'partitioned.hm'))
         parameters.mesh.partitioned_model = source
         if (parameters.mesh.reference_mesh_k) parameters.mesh.reference_mesh_k = path.resolve(parameters.mesh.reference_mesh_k)
@@ -220,6 +224,7 @@ class WorkflowStore {
       state.toolRuns = []
       state.configuration = null
       appendTrace(state, stage.id === 'solve' ? '组合求解准备中，通常需要数小时；仅汇报真实执行状态。' : `${stage.title}已开始。`)
+      if (stage.id === 'mesh') appendTrace(state, state.meshRecovery.reason)
       return state
     })
   }
@@ -246,7 +251,7 @@ class WorkflowStore {
           if (stage.id !== 'solve' || !['d3plot', 'combined_k'].includes(artifact.role) || !state.parameters.solve.service_paths_confirmed) throw new Error('仅服务端求解模型和结果允许使用远程路径。')
         } else {
           if (!localFile(artifact.path) || fs.statSync(artifact.path).size === 0) throw new Error(`产物不存在或为空：${artifact.path}`)
-          if (fs.statSync(artifact.path).mtimeMs < Date.parse(state.startedAt) - 2000) throw new Error(`产物早于本次执行，请核对是否使用了旧结果：${artifact.path}`)
+          if (fs.statSync(artifact.path).mtimeMs < Date.parse(state.startedAt) - 2000 && !(stage.id === 'mesh' && reusableMeshArtifact(state, artifact))) throw new Error(`产物早于本次执行，请核对是否使用了旧结果：${artifact.path}`)
         }
         return { role: artifact.role, path: artifact.path, remote: artifact.remote === true, executionId: state.executionId }
       })
@@ -255,17 +260,37 @@ class WorkflowStore {
         const text = fs.readFileSync(verification.path, 'utf8')
         if (stage.id === 'partition') {
           if (!/\bVERIFY_FAIL=0\b/.test(text) || /\bVERIFY_FAIL=[1-9]/.test(text)) throw new Error('分区独立回读未通过 VERIFY_FAIL=0。')
+          const geometry = readJson(artifacts.find(artifact => artifact.role === 'geometry_verification').path)
+          const model = artifacts.find(artifact => artifact.role === 'partitioned_model').path
+          if (!samePath(geometry.source_model, model) || !partitionGeometryPassed(geometry)) throw new Error('分区闭环或裁切面积校验未通过，请检查 geometry_verification 原始报告。')
         } else {
           let report
           try { report = JSON.parse(text) } catch { throw new Error('请将实际门禁记录汇总为 JSON：checks 数组逐条包含 name、passed、evidence。') }
           const checks = report.checks
           if (!Array.isArray(checks) || !checks.length || checks.some(check => check.passed !== true || !localFile(check.evidence) || fs.statSync(check.evidence).size === 0 || fs.statSync(check.evidence).mtimeMs < Date.parse(state.startedAt) - 2000)) throw new Error('门禁未全部通过或缺少本次执行的实际证据文件。')
           const names = stage.id === 'mesh' ? ['strict_k', 'auto_gate', 'quality', 'partition_coverage'] : stage.id === 'solve' ? ['parity', 'damper', 'probe', 'normal_termination', 'health'] : ['four_views']
+          if (stage.id === 'mesh' && state.meshRecovery?.mode === 'verify_existing') names.push('mesh_readback')
           if (names.some(name => !checks.some(check => check.name === name))) throw new Error(`缺少必需门禁：${names.join('、')}`)
+          const warnings = []
           for (const check of checks) {
             const evidence = fs.readFileSync(check.evidence, 'utf8')
             if (!evidencePassed(check.name, evidence)) throw new Error(`门禁证据没有通过：${check.name}`)
+            if (stage.id === 'mesh' && check.name === 'auto_gate') {
+              const report = JSON.parse(evidence)
+              const k = artifacts.find(artifact => artifact.role === 'curtain_k').path
+              if (!samePath(report.k_file, k)) throw new Error('auto_gate 检查的 K 文件与交付产物不一致。')
+              warnings.push(...report.results.filter(result => result.status === 'WARN').map(result => ({ name: result.name, summary: result.summary, detail: result.detail.filter(row => row[2] === 'WARN'), evidence: check.evidence })))
+            }
+            if (stage.id === 'mesh' && check.name === 'mesh_readback') {
+              const report = JSON.parse(evidence)
+              const hm = artifacts.find(artifact => artifact.role === 'mesh_model').path
+              const k = artifacts.find(artifact => artifact.role === 'curtain_k').path
+              if (report.schema !== 'cae.mesh-readback.v1' || report.overall !== 'PASS' || !Array.isArray(report.failures) || report.failures.length || !samePath(report.hm_file, hm) || !samePath(report.k_file, k) || report.hm_sha256 !== sha256(hm) || report.k_sha256 !== sha256(k) || !Number.isInteger(report.nodes) || report.nodes <= 0 || !Number.isInteger(report.elements) || report.elements <= 0) throw new Error('现有网格独立回读证据与交付文件不一致。')
+              if (!localFile(report.readback_file) || fs.statSync(report.readback_file).mtimeMs < Date.parse(state.startedAt) - 2000 || report.readback_sha256 !== sha256(report.readback_file)) throw new Error('缺少本次 HyperMesh 独立回读的原始记录，不能只刷新 JSON 报告。')
+            }
           }
+          state.stages[state.current].warnings = warnings
+          for (const warning of warnings) appendTrace(state, `${warning.name}：接受技能允许的 WARN；${warning.summary}。详见 ${warning.evidence}`, 'warning')
         }
       }
       if (stage.id === 'solve' && !state.toolRuns.some(run => run.success && run.name === 'mcp__cae__lsdyna_solve')) throw new Error('缺少所选求解后端的真实执行记录。')
@@ -309,21 +334,6 @@ class WorkflowStore {
   hasRunning() {
     if (!fs.existsSync(this.directory)) return false
     return fs.readdirSync(this.directory).filter(file => /^[a-f0-9]{64}\.json$/.test(file)).some(file => readJson(path.join(this.directory, file)).status === 'running')
-  }
-}
-
-function evidencePassed(name, text) {
-  if (name === 'normal_termination' || name === 'probe') return /(?:normal termination|termination time reached)/i.test(text) && !/abnormal termination|\*\*\*\s*error/i.test(text)
-  if (name === 'four_views') {
-    const match = text.match(/unique md5\s*:\s*(\d+)\s*\/\s*(\d+)/i)
-    return Boolean(match && Number(match[1]) >= 4 && match[1] === match[2] && ['front', 'back', 'left', 'right'].every(view => new RegExp(`['"]${view}['"]\\s*:\\s*[1-9]\\d*`).test(text)))
-  }
-  try {
-    const data = JSON.parse(text)
-    return data.overall === 'PASS' || data.verdict === 'PASS' || data.result?.verdict === 'PASS' || data.passed === true || data.status === 'PASS'
-  } catch {
-    if (/\b(?:FAIL|FAILED|ABNORMAL TERMINATION)\b(?!\s*[:=]\s*0\b)/i.test(text) || /\*\*\*\s*error/i.test(text) || (name === 'health' && /\bSKIP\b/.test(text))) return false
-    return /\bPASS(?:ED)?\b|VERIFY_FAIL=0|\b(?:errors|failures)\s*[:=]\s*0\b/i.test(text)
   }
 }
 

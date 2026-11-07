@@ -22,7 +22,7 @@ const builderRequire = createRequire(require.resolve('electron-builder'))
 const packagerRequire = createRequire(builderRequire.resolve('app-builder-lib'))
 const { path7za } = packagerRequire('7zip-bin')
 const { SKILLS } = require('../../cae-workflow/fields.cjs')
-const workflowFiles = ['index.js', 'client.js', 'fields.cjs', 'state.cjs', 'policy.js']
+const workflowFiles = ['index.js', 'client.js', 'fields.cjs', 'state.cjs', 'policy.js', 'gates.cjs', 'mesh-recovery.cjs']
 
 function skillAsset(source) {
   return !source.split(/[\\/]/).some(part => ['__pycache__', '.venv', 'node_modules', '.git', 'datasets', 'dataset', '.env', 'cae-settings.json', 'config.local.yaml'].includes(part))
@@ -157,7 +157,10 @@ async function verifyWorkflow(runtime) {
   assert(manifest.dsh?.client?.inject?.includes('@deepseek-ai/dsh-client-ui-sidebar-right'), 'Workflow requires the native dsh sidebar')
   for (const file of workflowFiles) assert((await stat(join(directory, file))).isFile(), `Missing workflow module: ${file}`)
   for (const skill of Object.values(SKILLS)) assert((await stat(join(runtime, skill, 'SKILL.md'))).isFile(), `Missing packaged skill: ${skill}`)
-  assert((await stat(join(runtime, SKILLS.partition, 'scripts', 'tree_model_v2.json'))).isFile(), 'Missing partition model weights')
+  for (const [skill, scripts] of [
+    [SKILLS.partition, ['tree_model_v2.json', 't08_verify_partitioned.tcl', 'partition_geometry.tcl']],
+    [SKILLS.mesh, ['gate/readback_mesh.tcl', 'gate/verify_mesh_readback.py', 'gate/auto_gate/kio.py']],
+  ]) for (const script of scripts) assert((await stat(join(runtime, skill, 'scripts', script))).isFile(), `Missing workflow skill script: ${script}`)
 }
 
 async function main() {

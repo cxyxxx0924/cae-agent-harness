@@ -4,6 +4,8 @@ const { tmpdir } = require('node:os')
 const path = require('node:path')
 const { test } = require('node:test')
 const { WorkflowStore, STAGES, validateParameters, missingSoftware } = require('../state.cjs')
+const { autoGate, partitionGeometry } = require('./gate-fixtures.cjs')
+const { sha256 } = require('../mesh-recovery.cjs')
 
 function fixture(t) {
   const directory = fs.mkdtempSync(path.join(tmpdir(), 'cae-workflow-'))
@@ -36,7 +38,7 @@ function outputs(f, state) {
   const stage = STAGES[state.current]
   const checks = stage.id === 'mesh' ? ['strict_k', 'auto_gate', 'quality', 'partition_coverage'] : stage.id === 'solve' ? ['parity', 'damper', 'probe', 'normal_termination', 'health'] : ['four_views']
   const extensions = { geometry: '.hm', partitioned_model: '.hm', mesh_model: '.hm', curtain_k: '.k', combined_k: '.k', d3plot: '', preview: '.png', animation: '.gif', report: '.pptx' }
-  return stage.outputs.map(role => ({ role, path: f.file(`${stage.id}/${role}${extensions[role] ?? '.txt'}`, role !== 'verification' ? 'actual output fixture' : stage.id === 'partition' ? 'VERIFY_FAIL=0' : { checks: checks.map(name => ({ name, passed: true, evidence: f.file(`${stage.id}/${name}.log`, name === 'four_views' ? "{'front': 3, 'back': 3, 'left': 3, 'right': 3}\nunique md5: 12 / 12" : ['probe', 'normal_termination'].includes(name) ? 'Normal termination' : 'PASS') })) }) }))
+  return stage.outputs.map(role => ({ role, path: f.file(`${stage.id}/${role}${extensions[role] ?? '.txt'}`, role === 'geometry_verification' ? partitionGeometry(path.join(f.directory, 'partition/partitioned_model.hm')) : role !== 'verification' ? 'actual output fixture' : stage.id === 'partition' ? 'VERIFY_FAIL=0' : { checks: checks.map(name => ({ name, passed: true, evidence: f.file(`${stage.id}/${name}.log`, name === 'auto_gate' ? autoGate(path.join(f.directory, 'mesh/curtain_k.k')) : name === 'four_views' ? "{'front': 3, 'back': 3, 'left': 3, 'right': 3}\nunique md5: 12 / 12" : ['probe', 'normal_termination'].includes(name) ? 'Normal termination' : 'PASS') })) }) }))
 }
 
 test('workflow waits for user input, retains missing-software parameters, and rejects stale submissions', t => {
@@ -222,4 +224,114 @@ test('interrupted solver retries require the user to verify the existing job fir
   assert.throws(() => f.store.submit('s1', state.revision, f.solve, f.software), /避免重复求解/)
   state = f.store.submit('s1', state.revision, { ...f.solve, retry_confirmed: true }, f.software)
   assert.equal(state.status, 'ready')
+})
+
+test('partition completion rejects a count-only PASS and overlapping or open trial surfaces', t => {
+  const f = fixture(t)
+  let state = f.setStage(1)
+  state = f.store.submit('s1', state.revision, {}, f.software)
+  state = f.store.begin('s1', f.software, f.root)
+  f.store.recordTool('s1', state.executionId, 'pwsh', true)
+  const artifacts = outputs(f, state)
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts.filter(a => a.role !== 'geometry_verification')), /geometry_verification/)
+  const model = artifacts.find(a => a.role === 'partitioned_model').path
+  const geometry = artifacts.find(a => a.role === 'geometry_verification').path
+  for (const metrics of [{ belt_area: 1092034 }, { cavity_boundary_closed: false }, { cut_cavity_area: 1 }, { cavity_area: -1 }]) {
+    const report = partitionGeometry(model)
+    Object.assign(report.metrics, metrics)
+    fs.writeFileSync(geometry, JSON.stringify(report))
+    assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /闭环或裁切面积/)
+  }
+  fs.writeFileSync(geometry, JSON.stringify(partitionGeometry(model)))
+  assert.equal(f.store.complete('s1', state.executionId, artifacts).status, 'review')
+})
+
+function beginMesh(f) {
+  let state = f.setStage(2)
+  state = f.store.change('s1', undefined, state => { state.stages[1].artifacts = [{ role: 'partitioned_model', path: f.file('partitioned.hm', 'confirmed partition') }]; return state })
+  state = f.store.submit('s1', state.revision, f.mesh, f.software)
+  return f.store.begin('s1', f.software, f.root)
+}
+
+test('accepted auto_gate WARN remains visible in review without weakening other gates', t => {
+  const f = fixture(t)
+  const state = beginMesh(f)
+  const artifacts = outputs(f, state)
+  const k = artifacts.find(a => a.role === 'curtain_k').path
+  f.file('mesh/auto_gate.log', autoGate(k, true))
+  f.store.recordTool('s1', state.executionId, 'pwsh', true)
+  f.file('mesh/quality.log', { verdict: 'WARN' })
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /quality/)
+  f.file('mesh/quality.log', { verdict: 'PASS' })
+  const completed = f.store.complete('s1', state.executionId, artifacts)
+  assert.equal(completed.status, 'review')
+  assert.deepEqual(completed.stages[2].warnings.map(w => w.name), ['拓扑门禁', '环几何匹配'])
+  assert.equal(JSON.parse(fs.readFileSync(path.join(f.directory, 'mesh/auto_gate.log'))).overall, 'WARN')
+})
+
+test('mesh retries reuse unchanged old artifacts only with fresh gates and independent HM/K readback', t => {
+  const f = fixture(t)
+  let state = beginMesh(f)
+  const artifacts = outputs(f, state)
+  const rolePaths = { mesh_model: 'curtain_mesh.hm', curtain_k: 'curtain_airbag.k', preview: 'mesh_preview.png' }
+  for (const artifact of artifacts) {
+    if (!rolePaths[artifact.role]) continue
+    const file = path.join(state.jobDirectory, 'out', rolePaths[artifact.role])
+    fs.copyFileSync(artifact.path, file)
+    artifact.path = file
+    fs.utimesSync(file, new Date(0), new Date(0))
+  }
+  const k = artifacts.find(a => a.role === 'curtain_k').path
+  const hm = artifacts.find(a => a.role === 'mesh_model').path
+  state = f.store.fail('s1', state.executionId, 'Inspect existing results', 'interrupted')
+  state = f.store.submit('s1', state.revision, f.mesh, f.software)
+  state = f.store.begin('s1', f.software, f.root)
+  assert.equal(state.meshRecovery.mode, 'verify_existing')
+  assert.equal(JSON.parse(fs.readFileSync(path.join(state.jobDirectory, 'mesh.recovery.json'))).artifacts.length, 3)
+  f.store.recordTool('s1', state.executionId, 'pwsh', true)
+  f.file('mesh/auto_gate.log', autoGate(k, true))
+  const summary = JSON.parse(fs.readFileSync(artifacts.find(a => a.role === 'verification').path))
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /mesh_readback/)
+  const rawReadback = f.file('mesh/readback.txt', 'independent HM readback fixture')
+  const readback = { schema: 'cae.mesh-readback.v1', overall: 'PASS', hm_file: hm, k_file: k, hm_sha256: sha256(hm), k_sha256: sha256(k), readback_file: rawReadback, readback_sha256: sha256(rawReadback), nodes: 82183, elements: 84064, failures: [] }
+  const evidence = f.file('mesh/readback.json', readback)
+  summary.checks.push({ name: 'mesh_readback', passed: true, evidence })
+  fs.writeFileSync(artifacts.find(a => a.role === 'verification').path, JSON.stringify(summary))
+  fs.writeFileSync(evidence, JSON.stringify({ ...readback, failures: ['HM did not finish reading'] }))
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /独立回读证据/)
+  fs.writeFileSync(evidence, JSON.stringify(readback))
+  fs.utimesSync(rawReadback, new Date(0), new Date(0))
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /独立回读的原始记录/)
+  fs.writeFileSync(rawReadback, 'independent HM readback fixture')
+  const gateFile = summary.checks[0].evidence
+  fs.utimesSync(gateFile, new Date(0), new Date(0))
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /本次执行/)
+  fs.writeFileSync(gateFile, 'PASS')
+  fs.appendFileSync(hm, 'tampered')
+  fs.utimesSync(hm, new Date(0), new Date(0))
+  assert.throws(() => f.store.complete('s1', state.executionId, artifacts), /旧结果/)
+  fs.writeFileSync(hm, 'actual output fixture')
+  fs.utimesSync(hm, new Date(0), new Date(0))
+  assert.equal(f.store.complete('s1', state.executionId, artifacts).status, 'review')
+  assert.equal(fs.statSync(hm).mtimeMs, 0, 'recovery does not refresh output timestamps')
+})
+
+test('changed mesh parameters or source partition cannot silently reuse previous outputs', t => {
+  const f = fixture(t)
+  let state = beginMesh(f)
+  for (const name of ['curtain_mesh.hm', 'curtain_airbag.k', 'mesh_preview.png']) f.file(path.relative(f.directory, path.join(state.jobDirectory, 'out', name)))
+  state = f.store.fail('s1', state.executionId, 'interrupted fixture')
+  state = f.store.submit('s1', state.revision, { ...f.mesh, element_size: 3 }, f.software)
+  state = f.store.begin('s1', f.software, f.root)
+  assert.equal(state.meshRecovery.mode, 'rebuild')
+  state = f.store.fail('s1', state.executionId, 'stopped before replacing old outputs')
+  state = f.store.submit('s1', state.revision, { ...f.mesh, element_size: 3 }, f.software)
+  state = f.store.begin('s1', f.software, f.root)
+  assert.equal(state.meshRecovery.mode, 'rebuild', 'repeated retries cannot attach new parameters to untouched old outputs')
+  state = f.store.fail('s1', state.executionId, 'interrupted fixture')
+  fs.appendFileSync(state.stages[1].artifacts[0].path, 'changed partition')
+  state = f.store.submit('s1', state.revision, { ...f.mesh, element_size: 3 }, f.software)
+  state = f.store.begin('s1', f.software, f.root)
+  assert.equal(state.meshRecovery.mode, 'rebuild')
+  assert.match(state.meshRecovery.reason, /分区模型已变化/)
 })

@@ -19,6 +19,8 @@ Python：`C:/Users/hekie/.workbuddy/binaries/python/envs/default/Scripts/python.
 
 ## 0. 一句话链路
 
+应用交付还要求 `scripts/t08_verify_partitioned.tcl` 的几何预检：在独立回读进程中调用 `partition_geometry.tcl`，试建 BELT 外轮廓和 CAVITY 面，检查派生面边界闭环、裁切面积守恒及 `belt_area = outer_area - cavity_area`。原始 CAD 自由端保留线号/坐标诊断，设计开口不能只按开链数硬失败，也不能擅自加大容差。输出 `out/partition_geometry.json` 必须 PASS，作为 `geometry_verification` 与 `VERIFY_FAIL=0` 一起交付。临时面不写回分区模型。
+
 ```
 原始 IGES ──S0 导入──> curves.hm(1 comp) ──S1/S2 导出──> geom_features.txt + lines_pts.txt
    ──S3 人工种子分类──> classify_v8.json ──S4 delta 累积(v9…v14)──> classify_final.json

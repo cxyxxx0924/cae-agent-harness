@@ -1,7 +1,8 @@
 ---
 name: curtain-airbag-auto-meshing
-description: 气帘（curtain airbag）自动网格划分全链路技能——从 CAD 曲线分区（布带/气腔/缝线/拉带四分区）到 HyperMesh 2026 裁切拓扑三面网格（界面天然共节点）、Y 分层组装、拉带节点捏合、充气口封口，到 LS-DYNA K 导出与 auto_gate 自动校验套件（拓扑/分层/环面积/节点路程/逐环几何匹配/拉带连接，零第三方依赖、纯 Python SVG 自出图、门禁规则可持续迭代）。当用户要"气帘网格划分/自动网格/多环共节点/网格边界贴合 CAD 曲线/拉带连接/hmbatch 2026/读 K 卡死/全自动无人值守网格流水线/训练通用网格技能"时使用。沉淀自 cab1/cab3/NEW_CAB 三案实战，案例无关（换项目只改 cases/ 配置与 gate_rules.json），全链路见 references/08_full_pipeline.md，无人值守链见 references/11_cab3_auto_pipeline.md，校验套件见 references/12_auto_gate.md；**气腔 washer 边界层 + 拉带凸台栅格并集 + 侧面拉带（穿布带端面缺口）**见 references/13_washer_and_tether_union.md（`scripts/stage3_mesh/add_washer.py`、`scripts/stage2_partition/tether_union.py`、`tether_side_outline.py`、`gen_side_tab.py`）；**washer 新做法（首选）**：划网格阶段用 `*blmesh_2d2` 一次成型，见 references/14_blmesh2d_washer_preroll.md；**通用质量口径**（要方正四边不要全四边、`element_type: mixed`、拉带连接三性质）见 references/15_mesh_quality_and_tether_connection.md；**换案例不改脚本**（`case.json` 驱动 + `chain_loops.py` 自动成环替代手抄 line id）见 references/16_generic_pipeline.md；**拉带锚固边受布带约束（三刀切，锚固排 5.000mm 等距共节点）**见 references/18_tether_anchor_three_cut.md（`scripts/stage3_mesh/plan_anchors.py` + `gen_tabs_anchored.py`）。**接新气帘先读 references/00_RUNBOOK_接新气帘.md**（端到端 runbook：每步命令/验收数字/失败分支）；坑位全集 P1–P60 见 references/04_pitfalls.md；未闭环清单见 references/19_open_issues.md；数字台账与回归基线见 references/20_baselines.md + assets/baselines.json。
-agent_created: true
+description: 气帘自动网格划分与产物核验。从 CAD 四分区曲线，经 HyperMesh 2026 裁切拓扑、共节点网格、分层组装、拉带连接和充气口封口，生成 LS-DYNA K 并执行拓扑、几何、质量与分区覆盖门禁。用于气帘网格生成、现有 HM/K 回读核验、边界贴合或连接问题排查；不含求解和已有封闭曲面的普通网格。案例参数由当前模型确定，接新项目先读 references/00_RUNBOOK_接新气帘.md。
+metadata:
+  agent_created: true
 ---
 
 # 气帘自动网格划分（分区 → 网格 → 校验 全链路）
@@ -246,6 +247,8 @@ python scripts/gate/auto_gate/clean_kfile.py --in out/mesh.k --out out/mesh_clea
 **产出**：`gate_report.json` + `.txt` + `gate_figs/*.svg`（浏览器直接开）。
 **退出码**：0 = PASS/WARN，1 = FAIL。详细方法论/门限含义/迭代方法见
 `references/12_auto_gate.md` 与 `scripts/gate/auto_gate/README.md`。
+
+桌面工作流的 `auto_gate` 接收完整五项原始报告；只接受无 FAIL 的短边、局部特征/跨 PID fabric 覆盖警告，未知 WARN 仍暂停。保留 `overall=WARN`，结果卡列出明细并等待用户确认，不修改门限来凑 PASS。重试先读应用的 `mesh.recovery.json`：`verify_existing` 时用 `scripts/gate/readback_mesh.tcl` 和 `verify_mesh_readback.py` 核验现有 HM/K，再重跑四门禁即可交付；输入或参数变化、用户要求调整或实际验证失败才返工。新建网格前须有分区 t08 的建面/裁切面积预检，`step1_template.tcl` 也会在实际裁切后复核面积守恒。
 
 ---
 

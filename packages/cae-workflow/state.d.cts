@@ -22,7 +22,7 @@ export interface WorkflowState {
   current: number
   status: string
   parameters: Record<string, Record<string, unknown>>
-  stages: { id: string; status: string; artifacts: Artifact[] }[]
+  stages: { id: string; status: string; artifacts: Artifact[]; warnings?: { name: string; summary: string; detail: unknown[][]; evidence: string }[] }[]
   traces: { time: string; text: string; kind: string }[]
   jobDirectory?: string
   executionId?: string

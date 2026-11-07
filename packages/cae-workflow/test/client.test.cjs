@@ -270,6 +270,20 @@ test('partition previews open an accessible lightbox and close with Escape or th
   assert.equal(find(ui.render(artifactsNode.type, props), node => node.props?.role === 'dialog'), null)
 })
 
+test('mesh result review displays accepted warnings before user confirmation', async t => {
+  const ui = await desktop(t)
+  ui.state.current = 2
+  ui.state.status = 'review'
+  ui.state.stages[2].warnings = [{ name: '拓扑门禁', summary: 'Short edges retained', detail: [['最小边 <3mm', { 2: 8, 3: 8 }, 'WARN']] }]
+  await ui.poll()
+  const component = find(ui.renderPanel(), node => node.type?.name === 'Review')
+  const tree = ui.render(component.type, component.props)
+  const warning = find(tree, node => node.props?.role === 'status')
+  assert.match(JSON.stringify(warning), /Short edges retained/)
+  assert.match(JSON.stringify(warning), /最小边 <3mm/)
+  assert.ok(find(tree, node => node.type === 'button' && JSON.stringify(node.children).includes('确认结果')))
+})
+
 test('result files have native sidebar, workflow and conversation entries, including after completion', async t => {
   const ui = await desktop(t)
   assert.deepEqual(ui.tabs.map(tab => tab.kind), ['cae-workflow', 'cae-results'])

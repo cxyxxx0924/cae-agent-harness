@@ -91,6 +91,13 @@ foreach nm $names lst $lists {
     }
 }
 
+source [file join [file dirname [info script]] partition_geometry.tcl]
+if {[partition_geometry::run "$P/$HMF" "$P/out/partition_geometry.json"]} {
+    log "GEOMETRY FAIL: see out/partition_geometry.json (open chains, seal lines, area overlap)"
+    set fail 1
+} else {
+    log "GEOMETRY PASS: closed trial surfaces and BELT = outer - CAVITY"
+}
 log "VERIFY_FAIL=$fail"
 close $out
 if {$fail} { puts "__HW_FAIL__" } else { puts "__HW_DONE__" }

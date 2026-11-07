@@ -12,7 +12,7 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 1. 调用 `cae_workflow` 的 `create` 或 `status`。工作流绑定当前对话。
 2. 提示用户打开对话顶部的“仿真工作流”，填写当前阶段的参数。界面使用 dsh 原生侧栏与默认布局。
 3. 当状态为 `parameters`、`blocked`、`review` 时停止执行，等待用户操作。只有用户表单提交后的 `ready` 状态可以 `begin`。
-4. `begin` 返回 `state.executionId`、`state.skillPath`、`state.jobDirectory`、当前阶段定义及 `state.parameterFile`，网格和求解还返回 `state.caseFile`，网格另有 `state.gateFile`。先读对应 skill，再按需读取这些文件中的当前参数；完整配置保存在文件中，工具不会重复返回其它阶段的参数或执行历史。
+4. `begin` 返回 `state.executionId`、`state.skillPath`、`state.jobDirectory`、当前阶段定义及 `state.parameterFile`，网格和求解还返回 `state.caseFile`，网格另有 `state.gateFile`、`state.recoveryFile`。先读对应 skill，再按需读取这些文件中的当前参数；完整配置保存在文件中，工具不会重复返回其它阶段的参数或执行历史。
 5. 只执行当前阶段。完成后调用 `complete`，传 `execution_id` 和真实产物。后续阶段重新等用户填写参数；分区、网格、后处理还要用户确认结果。
 
 用户确认只通过应用界面发生。不要代用户填表、改状态文件或连续跳过多个阶段。
@@ -40,7 +40,7 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 | 阶段 | 权威技能 | 关键要求 |
 | --- | --- | --- |
 | import | `docs/气帘iges分区skill/SKILL.md` | 用 `t00_import_iges.tcl`，显式设置 IGES/WORKDIR/HMBATCH/PY；交付真实 curves.hm |
-| partition | 同上 | v2 采样 → auto_partition2 → p06 → t07 → t08；BELT/CAVITY/SEAM/TETHER 四分区；独立回读 VERIFY_FAIL=0 |
+| partition | 同上 | v2 采样 → auto_partition2 → p06 → t07 → t08；BELT/CAVITY/SEAM/TETHER 四分区；独立回读 VERIFY_FAIL=0 且 partition_geometry.json PASS |
 | mesh | `docs/气帘自动网格划分_20261101(1)/气帘自动网格划分/SKILL.md` | 先读接新模型 runbook、pitfalls、generic pipeline 与 cases/README；从当前分区模型生成本次 mesh.case.json，无需上传配置文件；四道门禁全部通过 |
 | solve | `docs/气帘计算求解skill_20261102(1)/气帘计算求解skill/SKILL.md` | 先读 references/09、10；组合 K，ID 审计，保持参考卡物理参数，parity/阻尼门禁后先探针再正式算 |
 | postprocess | `docs/气帘评判及报告skill_20261103(1)/气帘评判及报告skill/SKILL.md` | 实际 bridge 状态 → MCP 启动 → 轮询在线；按用户时刻等参数生成四视角与动画 |
@@ -48,6 +48,15 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 
 不要调用 `hypermesh_partition_airbag`，它是早期三组件占位实现。也不要把旧的通用 mesh 工具当作四分区门禁链的替代品。
 技能 shell 脚本含 POSIX 命令；Windows 上先确认 Bash 可用，或逐条用现有 PowerShell/MCP 运行相同规范脚本，不能把 `.sh` 直接当作 Windows 可执行程序。
+
+### 网格重试与产物恢复
+
+先读取 `state.recoveryFile`。应用核对参数、已确认分区与上次输入的 SHA-256，并记录当前工作目录的实际产物。
+
+- `mode=verify_existing`：保留 `.hm/.k/preview`；在全新 hmbatch 进程运行网格技能的 `scripts/gate/readback_mesh.tcl`，设置 `WORKDIR` 和 `MESH_HM`，输出 `out/mesh_readback.txt`。再执行 `python scripts/gate/verify_mesh_readback.py --hm <现有HM> --k <现有K> --readback <回读文本> --out <out/mesh_readback.json>`，逐节点坐标与壳单元连接对比 HM/K。
+- 对现有 K 重跑严格 K、auto_gate、质量、分区覆盖四道门禁；`verification.checks` 增加 `mesh_readback`，指向本次生成的 `mesh_readback.json`。全部通过后直接 `complete`，旧产物可在哈希匹配时复用，门禁证据仍必须是本次生成。禁止 touch、复制文件刷新时间或改写 WARN 为 PASS。
+- `mode=rebuild`、用户要求调整、输入/参数变化或实际检查失败时，按真实失败范围返工；不可仅为清除允许的 WARN 重划或降低门限。
+- 新建网格前，旧分区也要用分区 t08 试建面预检；若只有线数回读 PASS，仍需补齐 `partition_geometry.json`。原始 CAD 的设计开口以诊断保留，不擅自归线或加大容差；面边界必须闭合，布带面积必须满足“外轮廓 − 气腔”，裁切前后面积守恒。
 
 ### 求解
 
@@ -67,9 +76,9 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 
 ## 交付与门禁协议
 
-`complete` 的 `artifacts` 是 `{role, path, remote?}` 数组，完整路径指向当前执行产生的非空文件；不能用旧案例结果冒充。必需角色在 `status/begin` 的 `stage.outputs` 中。
+`complete` 的 `artifacts` 是 `{role, path, remote?}` 数组，完整路径指向当前执行产生或按恢复协议重新核验的非空文件；不能用旧案例结果冒充。必需角色在 `status/begin` 的 `stage.outputs` 中。
 
-- 分区的 `verification` 为本次独立回读的原始文本，包含 `VERIFY_FAIL=0`。
+- 分区的 `verification` 为本次独立回读的原始文本，包含 `VERIFY_FAIL=0`；`geometry_verification` 指向 t08 生成的 `out/partition_geometry.json`，包含真实试建面闭环、裁切面积、源模型和开口线端点诊断。闭环或面积失败时先修正分区，不能直接进入网格。
 - 网格/求解/后处理的 `verification` 为本次门禁汇总 JSON：
 
 ```json
@@ -90,7 +99,7 @@ description: 在桌面应用中按用户确认的项目参数，编排 IGS 导�
 | solve | parity、damper、probe、normal_termination、health |
 | postprocess | four_views（evidence 指向 hv_render check 原始输出，unique md5: N / N，N≥4） |
 
-任何必需门禁 FAIL、WARN 或缺证据都应暂停并说明问题。若某报告仅输出中文，保留原始输出并附带实际工具退出码与报告解释，请维护人员适配验证器，不能伪造英文 PASS。
+必需门禁 FAIL、缺证据或未知 WARN 必须暂停。`auto_gate` 使用五项原始 JSON 结果（拓扑、分层、环面积/节点路程、环几何、拉带连接）：无 FAIL 时仅允许既定的短边 WARN，以及真缺口为零、有自有 fabric/跨 PID fabric 覆盖的局部特征 WARN；保留 `overall=WARN`、原始明细和证据路径，汇总 `passed=true` 表示满足此验收规则。应用在结果确认卡展示警告，用户仍需确认结果。其它检查 WARN 继续拦截，不能统一按退出码 0 放行，也不能通过降低门限或关闭检查取得 PASS。若报告格式不受支持，保留原始输出并附带实际退出码与解释，请维护人员适配，不能伪造英文 PASS。
 真实文件、图片、动画展示在工作流侧栏，工具调用、思考与详细日志仍在对话中。
 
 ## 软件缺失与错误

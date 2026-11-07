@@ -4,7 +4,7 @@ window.__ModuleLoader__.load({
     const { createElement: h, useEffect, useRef, useState } = require('react')
     const api = window.caeWorkflow
     const labels = { pending: '待开始', parameters: '待填写参数', ready: '待执行', blocked: '待配置软件', running: '执行中', review: '待确认', done: '已完成', completed: '已完成', error: '执行失败', interrupted: '执行中断' }
-    const roles = { geometry: '导入模型', partitioned_model: '四分区模型', mesh_model: '网格模型', curtain_k: '气帘 K 文件', combined_k: '组合模型', d3plot: '求解结果', animation: '四视角动画', preview: '结果预览', verification: '校验记录', report: '分析报告' }
+    const roles = { geometry: '导入模型', partitioned_model: '四分区模型', geometry_verification: '分区几何校验', mesh_model: '网格模型', curtain_k: '气帘 K 文件', combined_k: '组合模型', d3plot: '求解结果', animation: '四视角动画', preview: '结果预览', verification: '校验记录', report: '分析报告' }
     const channels = new Map()
 
     function channelFor(sessionId) {
@@ -315,6 +315,7 @@ window.__ModuleLoader__.load({
       }
       return h('div', { className: 'cae-flow-review' },
         h('p', null, '校验已通过。请查看实际模型和预览，确认后进入下一阶段。'),
+        ...(state.stages[state.current].warnings || []).map(warning => h('div', { key: warning.name, role: 'status', className: 'cae-flow-warning' }, h('p', null, `${warning.name}（WARN）：${warning.summary}`), ...warning.detail.map((row, index) => h('p', { key: index }, `${row[0]}：${typeof row[1] === 'object' ? JSON.stringify(row[1]) : row[1]}`)))),
         h('button', { type: 'button', className: 'cae-flow-primary', disabled: busy, onClick: () => void act(false) }, '确认结果，继续下一步'),
         h('label', { htmlFor: 'cae-flow-feedback' }, '需要调整'),
         h('textarea', { id: 'cae-flow-feedback', rows: 3, value: feedback, disabled: busy, placeholder: '填写需要调整的位置、原因或参数', onChange: event => setFeedback(event.target.value) }),

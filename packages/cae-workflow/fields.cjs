@@ -26,8 +26,8 @@ const STAGES = [
     id: 'partition', title: 'AI 分区', action: '开始四分区', skill: SKILLS.partition, review: true,
     help: '识别布带 BELT、气腔 CAVITY、缝线 SEAM、拉带 TETHER。完成后展示分区图，等待确认。',
     fields: [field('notes', '几何特征或分区要求', 'textarea', { required: false })],
-    outputs: ['partitioned_model', 'preview', 'verification'],
-    instructions: '使用 v2 的采样、auto_partition2.py、p06_export_class_lists.py、t07_make_comps.tcl、t08_verify_partitioned.tcl 链路，复用已导入的 curves.hm。独立回读必须 VERIFY_FAIL=0，四分区渲染必须来自真实模型。不能调用旧的三组件占位工具。',
+    outputs: ['partitioned_model', 'preview', 'verification', 'geometry_verification'],
+    instructions: '使用 v2 的采样、auto_partition2.py、p06_export_class_lists.py、t07_make_comps.tcl、t08_verify_partitioned.tcl 链路，复用已导入的 curves.hm。独立回读必须 VERIFY_FAIL=0；t08 同时输出 out/partition_geometry.json，试建布带外轮廓和气腔面、检查面边界闭环以及裁切面积守恒，geometry_verification 必须 PASS。开口诊断保留线号和坐标，不能只凭条数交付或擅自加大容差。四分区渲染必须来自真实模型。不能调用旧的三组件占位工具。',
   },
   {
     id: 'mesh', title: '网格', action: '生成网格', skill: SKILLS.mesh, review: true,
@@ -39,7 +39,7 @@ const STAGES = [
       field('notes', '网格及连接要求', 'textarea', { required: false }),
     ],
     outputs: ['mesh_model', 'curtain_k', 'preview', 'verification'],
-    instructions: '先读 references/00_RUNBOOK_接新气帘.md、04_pitfalls.md、16_generic_pipeline.md 和 cases/README.md。根据当前 partitioned.hm 调查组件 ID、平面/厚度方向及实际分区；在 jobDirectory 内生成 mesh.case.json 和 mesh.gate.json，再调用现有脚本。不要求上传 case.json。element_size 写入 mesh.size，单元类型写入 mesh.bl_etype。不要复制 cab1/cab2 的坐标、分层、部件清单、组装参数或门禁基线；逐项核对技能脚本的实际支持和硬编码。任何无法由当前模型、已验证文件或脚本约束可靠确定的项目参数，都用 request_input 说明字段、单位和所需依据并等待用户补充，不得猜测或略过门禁。目标 K 固定为 out/curtain_airbag.k；运行严格 K、auto_gate、质量和分区覆盖四道门禁，缺件或失败必须停止。',
+    instructions: '先读 references/00_RUNBOOK_接新气帘.md、04_pitfalls.md、16_generic_pipeline.md 和 cases/README.md，并读取 mesh.recovery.json。mode=verify_existing 时先用 scripts/gate/readback_mesh.tcl 独立回读现有 HM、verify_mesh_readback.py 对比现有 K，重跑四道门禁后直接 complete，不要重划或刷新产物时间戳；参数或分区变化、用户要求调整或实际验证失败才返工。新建网格前运行分区 t08 的建面与裁切面积预检。根据当前 partitioned.hm 调查组件 ID、平面/厚度方向及实际分区；在 jobDirectory 内生成 mesh.case.json 和 mesh.gate.json，再调用现有脚本。不要求上传 case.json。element_size 写入 mesh.size，单元类型写入 mesh.bl_etype。不要复制 cab1/cab2 的坐标、分层、部件清单、组装参数或门禁基线；逐项核对技能脚本的实际支持和硬编码。无法从当前模型、已验证文件或脚本约束可靠确定的项目参数，用 request_input 说明字段、单位和依据并等待补充，不得猜测或略过门禁。目标 K 固定为 out/curtain_airbag.k；运行严格 K、auto_gate、质量和分区覆盖四道门禁。auto_gate 必须包含五项原始结果且无 FAIL；仅允许短边以及有 fabric 覆盖且真缺口为零的局部特征/跨 PID WARN，保留原始报告并交用户确认；其它 WARN、缺件或失败必须停止。',
   },
   {
     id: 'solve', title: '求解', action: '提交组合求解', skill: SKILLS.solve,

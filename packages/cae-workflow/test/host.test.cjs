@@ -64,6 +64,7 @@ test('model-facing workflow snapshots leave large case data and tool history on 
     state.traces = Array(100).fill({ text: 'prior execution history'.repeat(50) })
     state.toolRuns = Array(100).fill({ name: 'bash', success: true })
     state.stages[1].artifacts = [{ role: 'partitioned_model', path: join(directory, 'partitioned.hm') }]
+    state.stages[2].warnings = [{ name: '拓扑门禁', summary: 'Short edges', detail: [['最小边 <3mm', { 2: 8 }, 'WARN']], evidence: join(directory, 'auto_gate.json') }]
     return state
   })
   const snapshot = workflowView(full)
@@ -75,10 +76,12 @@ test('model-facing workflow snapshots leave large case data and tool history on 
   assert.equal(snapshot.state.parameterFile, join(directory, 'mesh.parameters.json'))
   assert.equal(snapshot.state.caseFile, join(directory, 'mesh.case.json'))
   assert.equal(snapshot.state.gateFile, join(directory, 'mesh.gate.json'))
+  assert.equal(snapshot.state.recoveryFile, join(directory, 'mesh.recovery.json'))
   assert.equal(snapshot.state.executionId, 'current-execution')
   assert.equal(snapshot.state.error, 'Actual diagnostic to preserve.')
   assert.deepEqual(snapshot.state.successfulTools, ['bash'])
   assert.deepEqual(snapshot.state.stages[1].artifacts, full.stages[1].artifacts)
+  assert.deepEqual(snapshot.state.stages[2].warnings, full.stages[2].warnings)
   assert.deepEqual(snapshot, JSON.parse(JSON.stringify(snapshot)), 'tool output must remain lossless JSON')
   assert.deepEqual(store.load('session'), full, 'the full persistent state must stay intact')
 })

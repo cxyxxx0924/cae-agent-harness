@@ -115,9 +115,24 @@ set i1 [hm_entitymaxid surfaces]
 *surfacesplineonlinesloop 1 1 0 1
 set SBLUE [lindex [new_surfs $i1] 0]
 log "SBLUE=$SBLUE area=[format %.1f [surf_area $SBLUE]]"
+set outer_area [surf_area $SBLUE]
+set cavity_area [surf_area $SL3]
+set junk_before_cut [llength $junk]
 lassign [trim_by_edges $SBLUE $l3edges "L2" junk] SBLUE SCAV
+# Classify by measured cavity area; HyperMesh may retain either region's ID.
+if {$SCAV > 0 && abs([surf_area $SBLUE]-$cavity_area) < abs([surf_area $SCAV]-$cavity_area)} {
+    set retained $SBLUE; set SBLUE $SCAV; set SCAV $retained
+}
 set SBELT $SBLUE
 log "SCAV=${SCAV} area=[format %.1f [surf_area $SCAV]]  SBELT=${SBELT} area=[format %.1f [surf_area $SBELT]]"
+set cut_cavity_area [surf_area $SCAV]
+set belt_area [surf_area $SBELT]
+set area_tolerance [expr {max(1.0, $outer_area*0.001)}]
+if {$outer_area <= $cavity_area || $cavity_area <= 0 || $belt_area <= 0 || $SCAV <= 0 || [llength $junk] != $junk_before_cut || abs($belt_area+$cut_cavity_area-$outer_area) > $area_tolerance || abs($cut_cavity_area-$cavity_area) > $area_tolerance} {
+    log "GEOMETRY FAIL: outer=$outer_area cavity=$cavity_area belt=$belt_area cut_cavity=$cut_cavity_area; check open chains and seal-line ownership"
+    close $rep
+    error "Partition area conservation failed before meshing"
+}
 
 # ===== 4. 气腔裁各缝线洞 (数量 = ringdefs 长度) =====
 set seam_holes {}
