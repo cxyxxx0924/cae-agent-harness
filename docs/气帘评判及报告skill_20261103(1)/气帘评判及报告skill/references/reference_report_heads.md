@@ -1,7 +1,7 @@
 # 参考报告头部重心坐标提取与模板结构
 
 ## 参考报告
-- 文件：`JOB-00061377_IC_Coverage.pptx`（Autoliv GEELY R676 IC Coverage & Volume）
+- 文件：`docs/file_for_CAB/JOB-00061377_IC_Coverage.pptx`（Autoliv GEELY R676 IC Coverage & Volume）
 - 共 13 页；风格：蓝白学术风，每页母版带 "Internal" / "Copyright Autoliv Inc." 角标。
 
 ## 头部重心（Head Barycenter）坐标表

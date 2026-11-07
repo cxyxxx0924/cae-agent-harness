@@ -11,3 +11,19 @@ out/
 *.gif
 *.pptx
 _*.tcl
+
+# CAB source package is curated explicitly; old iterations and scratch exports stay local.
+docs/file_for_CAB/*
+!docs/file_for_CAB/README.md
+!docs/file_for_CAB/JOB-00061377_IC_Coverage.pptx
+!docs/file_for_CAB/附录G可变形移动壁障侧面碰撞测试评价规程.pdf
+!docs/file_for_CAB/Model_update_Move_Iter04/
+!docs/file_for_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/
+!docs/file_for_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/*.key
+!docs/file_for_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/*.k
+!docs/file_for_CAB/head_area/
+!docs/file_for_CAB/head_area/*.key
+!docs/file_for_CAB/head_area/*.k
+
+# Generated analysis evidence depends on a local HyperView export and is not source data.
+docs/file_for_CAB/evidence/

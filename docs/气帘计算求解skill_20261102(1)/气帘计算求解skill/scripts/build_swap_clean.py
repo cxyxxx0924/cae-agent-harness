@@ -10,11 +10,15 @@
 组装 main_swap.key = 03_Control_MOD + MAT.K + cab1_clean + Vehicle + Spring_swap
 """
 import os, re, math
+from pathlib import Path
 
-BASE = r'E:/work/AI_CAB'
-REF  = BASE + '/Model_update_Move_Iter04/Model_update_Move_Iter04'
-WK   = BASE + '/onekey'
-OUT  = WK + '/run_swap'
+REPO_ROOT = Path(__file__).resolve().parents[4]
+CASE_DIR = Path(os.environ.get('CAB_CASE_DIR', REPO_ROOT / 'docs/file_for_CAB'))
+REF = os.environ.get(
+    'CAB_MODEL_DIR',
+    str(CASE_DIR / 'Model_update_Move_Iter04/Model_update_Move_Iter04'))
+WK = os.environ.get('CAB_WORK_DIR', str(CASE_DIR / 'work'))
+OUT = os.environ.get('CAB_SWAP_OUT', str(CASE_DIR / 'evidence/run_swap'))
 NOFF = 30_000_000   # 节点重编号
 EOFF = 30_000_000   # 单元重编号
 KEEP_CURVES = (10, 12, 13, 14, 15)

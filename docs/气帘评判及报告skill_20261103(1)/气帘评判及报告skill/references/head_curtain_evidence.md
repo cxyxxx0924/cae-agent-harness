@@ -79,18 +79,17 @@
 
 ---
 
-## 3. 跑法（注意路径是项目特定的，需重指）
+## 3. 跑法
 
-三个脚本顶部 `MODEL_DIR / HEAD_DIR / NODES_JSON / OUT_DIR / EV` 都是**本项目的绝对路径**，
-复用到别的算例时改这几个常量即可（deck 名、头型目录、NAPS 导出目录、输出目录）。
+三个脚本默认从仓库的 `docs/file_for_CAB/` 读取 Iter04 模型与四个 HIII 网格，证据写入该算例的 `evidence/` 目录。目录可通过环境变量覆盖：`CAB_CASE_DIR`、`CAB_MODEL_DIR`、`CAB_HEAD_DIR`、`CAB_EVIDENCE_DIR`；步骤 1 的 HyperView 状态导出文件可通过 `CAB_NODES_JSON` 指定，默认是 `docs/file_for_CAB/evidence/nodes_last.json`。
 
 ```bash
-cd <skill>/scripts
+cd <repo>/docs/气帘评判及报告skill_20261103(1)/气帘评判及报告skill/scripts
 python g14_headcurtain_build.py      # -> heads_vs_curtain.key / .npz
 python g14_headcurtain_sections.py   # -> sections.json (+ _debug_yz.png)
 python g14_headcurtain_figs.py 1 2 3 4   # -> 4 张图
 ```
-依赖：`numpy scipy matplotlib`（系统 python 即可，venv 里没有 Pillow 也不影响）。
+运行前需将 HyperView 导出的 `nodes_last.json` 放到默认位置或设置 `CAB_NODES_JSON`。依赖：`numpy scipy matplotlib`（系统 python 即可，venv 里没有 Pillow 也不影响）。
 
 ---
 

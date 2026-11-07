@@ -12,10 +12,13 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 
-EV = r"E:\work\workbuddy\2026-10-30-20-33-11\CAB_G143_evidence"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+CASE_DIR = Path(os.environ.get("CAB_CASE_DIR", REPO_ROOT / "docs/file_for_CAB"))
+EV = os.environ.get("CAB_EVIDENCE_DIR", str(CASE_DIR / "evidence"))
 NPZ = os.path.join(EV, "heads_vs_curtain.npz")
 
 # head CoG anchors from the regulatory setup (heads.json), X / Z used for cuts

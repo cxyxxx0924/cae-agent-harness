@@ -1,1 +1,8 @@
 docs/file_for_CAB.rar filter=lfs diff=lfs merge=lfs -text
+
+# CAB Iter04 model and head-mesh source assets.
+docs/file_for_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/*.key filter=lfs diff=lfs merge=lfs -text
+docs/file_for_CAB/Model_update_Move_Iter04/Model_update_Move_Iter04/*.k filter=lfs diff=lfs merge=lfs -text
+docs/file_for_CAB/head_area/*.key filter=lfs diff=lfs merge=lfs -text
+docs/file_for_CAB/head_area/*.k filter=lfs diff=lfs merge=lfs -text
+docs/file_for_CAB/JOB-00061377_IC_Coverage.pptx filter=lfs diff=lfs merge=lfs -text

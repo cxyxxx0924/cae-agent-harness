@@ -15,13 +15,19 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 
 import numpy as np
 
-MODEL_DIR = r"E:\work\AI_CAB\Model_update_Move_Iter04\Model_update_Move_Iter04"
-HEAD_DIR = r"E:\work\AI_CAB\head_area"
-NODES_JSON = r"C:\Users\hekie\Documents\HyperWorksMCP\workspace\Iter04\nodes_last.json"
-OUT_DIR = r"E:\work\workbuddy\2026-10-30-20-33-11\CAB_G143_evidence"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+CASE_DIR = Path(os.environ.get("CAB_CASE_DIR", REPO_ROOT / "docs/file_for_CAB"))
+MODEL_DIR = os.environ.get(
+    "CAB_MODEL_DIR",
+    str(CASE_DIR / "Model_update_Move_Iter04/Model_update_Move_Iter04"))
+HEAD_DIR = os.environ.get("CAB_HEAD_DIR", str(CASE_DIR / "head_area"))
+EVIDENCE_DIR = os.environ.get("CAB_EVIDENCE_DIR", str(CASE_DIR / "evidence"))
+NODES_JSON = os.environ.get("CAB_NODES_JSON", os.path.join(EVIDENCE_DIR, "nodes_last.json"))
+OUT_DIR = EVIDENCE_DIR
 
 CURTAIN_PIDS = (4, 6, 7, 8)
 HEAD_ID_OFF = 10000000            # same trick as main_dummy.key
