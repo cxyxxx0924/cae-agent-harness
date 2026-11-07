@@ -11,6 +11,8 @@ async function desktop(configured) {
   const started = []
   const cleanups = []
   const blocks = new Map()
+  const brandIcons = [{ href: '/favicon-dark.svg' }, { href: '/favicon.svg' }]
+  const page = { title: 'DeepSeek Harness' }
   const entries = new Map([
     ['sidebar.settings', [{ store: { create: () => ({ actions: { openSection: id => openedSections.push(id) } }) } }]],
     ['conversation.input.model', [{ options: { priority: 0 }, component: () => 'normal-model-picker' }]],
@@ -52,7 +54,11 @@ async function desktop(configured) {
         },
       },
     },
-    document: { createElement: () => ({ remove() {} }), head: { appendChild() {} } },
+    document: Object.assign(page, {
+      createElement: () => ({ remove() {} }),
+      head: { appendChild() {} },
+      querySelectorAll: () => brandIcons,
+    }),
   })
   const services = {
     slots,
@@ -81,7 +87,7 @@ async function desktop(configured) {
     const entry = [...slots.entries(name)].sort((left, right) => (left.options.priority ?? 0) - (right.options.priority ?? 0))[0]
     return entry.component(props)
   }
-  return { navigation, originalStart, render, openedSections, started, blocks,
+  return { navigation, originalStart, render, openedSections, started, blocks, page, brandIcons,
     openMenu: () => openFromMenu(),
     dispose: () => cleanups.reverse().forEach(cleanup => cleanup()),
   }
@@ -90,6 +96,11 @@ async function desktop(configured) {
 test('unconfigured desktop opens settings on model/new-session actions while initial browsing stays open', async t => {
   const ui = await desktop(false)
   t.after(ui.dispose)
+  assert.equal(ui.render('sidebar.brand.name').children[0], 'SIMFLOW')
+  assert.equal(ui.render('sidebar.brand.mark', { size: 24 }).type, 'svg')
+  assert.equal(ui.render('conversation.hero.brand.mark', { size: 34 }).type, 'svg')
+  assert.equal(ui.page.title, 'SIMFLOW')
+  assert.ok(ui.brandIcons.every(icon => icon.href.startsWith('data:image/svg+xml,')))
   assert.equal(ui.openedSections.length, 0)
   assert.equal(ui.started.length, 0)
   const model = ui.render('conversation.input.model', { sessionId: 'existing-session', locked: false })
@@ -112,6 +123,7 @@ test('unconfigured desktop opens settings on model/new-session actions while ini
 test('configured desktop keeps normal model selection and passes the new-session request through', async t => {
   const ui = await desktop(true)
   t.after(ui.dispose)
+  assert.equal(ui.page.title, 'SIMFLOW')
   assert.equal(ui.openedSections.length, 0)
   assert.equal(ui.render('conversation.input.model'), 'normal-model-picker')
   const options = { prompt: 'existing draft', clearPreviousDraft: false }
@@ -127,6 +139,8 @@ test('onboarding teardown restores navigation and releases the composer block it
   const ui = await desktop(false)
   ui.render('conversation.input.model', { sessionId: 'existing-session' })
   ui.dispose()
+  assert.equal(ui.page.title, 'DeepSeek Harness')
+  assert.deepEqual(ui.brandIcons.map(icon => icon.href), ['/favicon-dark.svg', '/favicon.svg'])
   assert.equal(ui.navigation.startSession, ui.originalStart)
   assert.equal(ui.blocks.get('existing-session'), undefined)
   assert.equal(ui.render('conversation.input.model'), 'normal-model-picker')

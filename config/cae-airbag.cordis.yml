@@ -140,7 +140,7 @@
       config:
         providers:
           cae:
-            displayName: CAE
+            displayName: SIMFLOW
             api: openai-completions
             baseURL: !!js process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1'
             apiKeyEnv: DEEPSEEK_API_KEY

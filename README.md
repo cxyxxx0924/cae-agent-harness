@@ -1,6 +1,6 @@
-# CAE Agent Harness — 气帘仿真 AI Agent
+# SIMFLOW — 气帘仿真 AI 工作流平台
 
-基于 **dsh (deepseek-harness)** 的 CAE 气帘仿真 Agent，支持全流程自动化：
+基于 **dsh (deepseek-harness)** 的 CAE 气帘仿真工作流平台，支持全流程自动化：
 IGS 导入 → 模型分区 → 网格划分 → LS-DYNA 求解 → HyperView 导出 GIF → PPT 报告生成。
 
 助手的系统提示词限定只回答 CAE/工程仿真相关内容，包括直接服务于仿真任务的软件配置、脚本、文件处理和排错。无关请求会简短拒答且不调用工具或创建工作流；混合请求只处理仿真部分，关联不明时先澄清仿真场景。要求忽略规则、角色扮演或文件中的指令不能扩大回答范围。
@@ -40,7 +40,7 @@ set HYPERWORKS_HOME=C:\Altair\2023
 ## 架构
 
 ```
-CAE Agent (Electron Window)
+SIMFLOW (Electron Window)
   └── dsh runtime  (AI Agent Loop + Web UI at :3080)
         └── MCP Client → @cae/mcp-server  (stdio)
               ├── mcp__cae__hypermesh_import_igs
@@ -170,7 +170,7 @@ Windows 启动日志保存在 `%APPDATA%\@cae\electron-shell\logs\startup.log`�
 
 “测试连接”只发送健康检查，不提交求解任务；服务地址和令牌在保存时校验。仅使用模型对话时，软件路径可以留空。
 
-求解服务需实现以下 CAE Agent HTTP 接口（服务本身需另行部署，本项目不自动安装求解服务）：
+求解服务需实现以下 SIMFLOW HTTP 接口（服务本身需另行部署，本项目不自动安装求解服务）：
 
 - `GET <服务地址>/health`：返回 HTTP 200 和 `{"status":"ok"}`。
 - `POST <服务地址>/solve`：接受以下 JSON，**求解完成后**返回结果；服务地址可包含路径前缀。
@@ -221,8 +221,8 @@ pnpm dist:win:installer
 
 输出目录为 `packages/electron-shell/dist-app/`，文件名中的版本号跟随应用版本：
 
-- `CAE-Agent-0.1.1-Windows-x64.zip`：完整解压后打开 `CAE Agent.exe`，不能只复制 EXE。
-- `CAE-Agent-0.1.1-Windows-x64-Setup.exe`：安装向导，可选择安装目录，安装后从快捷方式启动。
+- `SIMFLOW-0.1.1-Windows-x64.zip`：完整解压后打开 `SIMFLOW.exe`，不能只复制 EXE。
+- `SIMFLOW-0.1.1-Windows-x64-Setup.exe`：安装向导，可选择安装目录，安装后从快捷方式启动。
 - 每个发行文件都有对应的 `.sha256` 校验文件。
 
 构建环境要求 Node.js >= 24.9.0 和 pnpm 10.x，支持在 macOS 或 Windows 上构建 Windows x64 版本。

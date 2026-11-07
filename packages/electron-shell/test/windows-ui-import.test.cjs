@@ -67,9 +67,9 @@ const script = String.raw`
 `
 
 for (const adapterPath of [
-  String.raw`C:\CAE Agent\resources\runtime\node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js`,
+  String.raw`C:\SIMFLOW\resources\runtime\node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js`,
   String.raw`D:\仿真软件 #1\resources\runtime\node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js`,
-  String.raw`\\workstation\共享目录\CAE Agent\node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js`,
+  String.raw`\\workstation\共享目录\SIMFLOW\node_modules\@deepseek-ai\dsh-llm-pi-ai\lib\index.js`,
 ]) {
   test(`CAE settings host loads with a Windows adapter path: ${adapterPath}`, async () => {
     const result = await run(process.execPath, [

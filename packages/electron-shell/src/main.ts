@@ -23,6 +23,10 @@ const DSH_PORT          = Number(process.env.DSH_PORT ?? 3080)
 const DSH_URL           = `http://127.0.0.1:${DSH_PORT}`
 const STARTUP_TIMEOUT_MS = 60_000
 const IS_PACKAGED       = app.isPackaged
+const APP_NAME = 'SIMFLOW'
+const USER_DATA_PATH = app.getPath('userData')
+app.setName(APP_NAME)
+app.setPath('userData', USER_DATA_PATH)
 
 // ── Paths ──────────────────────────────────────────────────────────────────
 function resourcePath(...parts: string[]): string {
@@ -227,7 +231,7 @@ function registerIpc(): void {
   function requireMainWindow(event: Electron.IpcMainInvokeEvent): void {
     const url = new URL(event.senderFrame?.url ?? 'about:blank')
     if (event.sender !== mainWindow?.webContents || url.origin !== DSH_URL) {
-      throw new Error('请在 CAE Agent 主窗口中修改配置。')
+      throw new Error('请在 SIMFLOW 主窗口中修改配置。')
     }
   }
 
@@ -369,14 +373,15 @@ function createMainWindow(): BrowserWindow {
     height: 900,
     minWidth: 900,
     minHeight: 600,
-    title: 'CAE Agent',
+    title: APP_NAME,
+    icon: join(__dirname, '..', 'resources', 'icon.png'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
       preload: join(__dirname, 'ui-preload.js'),
     },
-    backgroundColor: '#0f172a',
+    backgroundColor: '#06172f',
     show: false,
   })
   mainWindow.loadFile(join(__dirname, '..', 'resources', 'starting.html')).catch(error => {
@@ -384,7 +389,7 @@ function createMainWindow(): BrowserWindow {
   })
   mainWindow.webContents.on('page-title-updated', event => {
     event.preventDefault()
-    mainWindow?.setTitle('CAE Agent')
+    mainWindow?.setTitle(APP_NAME)
   })
   mainWindow.once('ready-to-show', () => { mainWindow?.show() })
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -396,7 +401,7 @@ function createMainWindow(): BrowserWindow {
 
   const menu = Menu.buildFromTemplate([
     {
-      label: 'CAE Agent',
+      label: APP_NAME,
       submenu: [
         {
           label: '设置...',
@@ -451,7 +456,7 @@ app.on('second-instance', () => {
 app.whenReady().then(async () => {
   if (!ownsInstance || quitting) return
   runtimeLog = new RuntimeLog(join(app.getPath('userData'), 'logs', 'startup.log'))
-  runtimeLog.write('main', `CAE Agent ${app.getVersion()}; platform=${process.platform}; packaged=${IS_PACKAGED}`)
+  runtimeLog.write('main', `${APP_NAME} ${app.getVersion()}; platform=${process.platform}; packaged=${IS_PACKAGED}`)
   registerIpc()
 
   try {
@@ -469,7 +474,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     if (quitting) return
     runtimeLog.write('main', err instanceof Error ? err.message : String(err))
-    dialog.showErrorBox('CAE Agent — 启动失败', runtimeLog.failure(err))
+    dialog.showErrorBox(`${APP_NAME} — 启动失败`, runtimeLog.failure(err))
     app.quit()
   } finally {
     launchingDsh = false

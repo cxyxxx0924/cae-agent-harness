@@ -57,7 +57,7 @@ function cachePage(api) {
         }))
       } },
     },
-    document: { createElement: () => ({}), head: { appendChild() {} } },
+    document: { title: 'Test', createElement: () => ({}), head: { appendChild() {} }, querySelectorAll: () => [] },
   })
   plugin.apply({
     effect: callback => callback(),

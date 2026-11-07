@@ -11,7 +11,7 @@ export async function checkDshPort(port: number): Promise<void> {
     const server = createServer()
     server.once('error', (error: NodeJS.ErrnoException) => {
       reject(error.code === 'EADDRINUSE'
-        ? new Error(`后台端口 ${port} 已被占用。请退出之前启动的 CAE Agent 或 dsh 后重试。`)
+        ? new Error(`后台端口 ${port} 已被占用。请退出之前启动的 SIMFLOW 或 dsh 后重试。`)
         : error)
     })
     server.listen({ host: '127.0.0.1', port, exclusive: true }, () => {

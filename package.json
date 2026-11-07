@@ -1,7 +1,7 @@
 {
   "name": "cae-agent-harness",
   "version": "0.1.1",
-  "description": "CAE 气帘仿真 Agent — dsh + MCP + Electron",
+  "description": "SIMFLOW — CAE 气帘仿真工作流平台",
   "private": true,
   "type": "module",
   "scripts": {

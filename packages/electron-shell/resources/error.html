@@ -2,11 +2,13 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<title>CAE Agent — 连接中断</title>
+<title>SIMFLOW — 连接中断</title>
+<link rel="icon" type="image/png" href="./icon.png">
 <style>
-  body { background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif;
+  body { background: #06172f; color: #e2e8f0; font-family: system-ui, sans-serif;
          display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
   .box { text-align: center; max-width: 480px; }
+  img { display: block; width: min(240px, 56vw); height: auto; margin: 0 auto 20px; }
   h1 { font-size: 1.5rem; color: #f87171; }
   p  { color: #94a3b8; line-height: 1.6; }
   button { margin-top: 1.5rem; padding: 0.6rem 1.6rem; background: #2563eb; color: #fff;
@@ -16,8 +18,9 @@
 </head>
 <body>
 <div class="box">
+  <img src="./simflow-logo.webp" alt="SIMFLOW">
   <h1>⚠️ dsh 运行时已停止</h1>
-  <p>CAE Agent 后端（dsh）意外退出。请查看用户数据目录下的 logs/startup.log 后重启应用。</p>
+  <p>SIMFLOW 后端（dsh）意外退出。请查看用户数据目录下的 logs/startup.log 后重启应用。</p>
   <button onclick="location.reload()">重新连接</button>
 </div>
 </body>

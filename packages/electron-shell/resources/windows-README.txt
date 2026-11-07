@@ -1,8 +1,8 @@
-CAE Agent - Windows x64
+SIMFLOW - Windows x64
 
-1. ZIP 免安装版：完整解压后双击 CAE Agent.exe。请保留 resources、
+1. ZIP 免安装版：完整解压后双击 SIMFLOW.exe。请保留 resources、
    locales 和所有 DLL 文件，不能只复制 EXE。
-   EXE 安装包：运行 CAE-Agent-版本号-Windows-x64-Setup.exe，按向导
+   EXE 安装包：运行 SIMFLOW-版本号-Windows-x64-Setup.exe，按向导
    选择安装目录；安装后从快捷方式启动。
 2. 首次启动填写自己的 API Key 和接口地址，点击“获取模型列表”，
    点击标签勾选要使用的模型，再从下拉框选择默认模型并保存。
@@ -12,7 +12,7 @@ CAE Agent - Windows x64
 3. 在“设置 → 仿真软件”选择求解位置：本地或服务端。本地可继续选择
    “软件”（填写 LS-DYNA 路径）或“求解服务”（填写本机服务地址）。
    服务端模式填写远程服务地址；两种服务模式均支持可选的访问令牌和测试连接。
-   求解服务需另行部署并支持 CAE Agent 的 /health、/solve HTTP 接口；
+   求解服务需另行部署并支持 SIMFLOW 的 /health、/solve HTTP 接口；
    模型及引用文件需能被服务访问，客户端不会自动上传模型或下载结果。
 4. 本机前后处理按需配置 HyperWorks 和仿真工作目录；本地软件求解需
    自行安装 LS-DYNA。运行这些仿真软件均需配置对应许可证。

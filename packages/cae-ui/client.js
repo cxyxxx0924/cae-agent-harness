@@ -2,6 +2,24 @@ window.__ModuleLoader__.load({
   id: '@cae/dsh-ui',
   factory: require => {
     const { createElement, useEffect, useState } = require('react')
+    const element = createElement
+    const upperMark = 'M54 10 H31 C18 10 12 17 12 25 C12 33 19 38 32 38'
+    const lowerMark = 'M32 38 H37 C48 38 53 44 53 52 C53 60 46 62 33 62 H10'
+    const faviconUrl = `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path d="${upperMark}" fill="none" stroke="#1477ce" stroke-width="8"/><path d="${lowerMark}" fill="none" stroke="#18c7e6" stroke-width="8"/><path d="M46 4 62 10 46 17Z" fill="#d8eaff"/><path d="m47 4-4-3m10 4 5-5m-1 9 6-1m-11 7 4 4" stroke="#f5a623" stroke-width="1.5" stroke-linecap="round"/><circle cx="49" cy="10" r="3.8" fill="#ff9819"/></svg>`)}`
+    function SimflowMark({ size = 24, className }) {
+      return element('svg', {
+        width: size, height: size, viewBox: '0 0 64 64', fill: 'none', className,
+        role: 'img', 'aria-label': 'SIMFLOW', xmlns: 'http://www.w3.org/2000/svg',
+      },
+      element('path', { d: upperMark, stroke: '#1477ce', strokeWidth: 8, strokeLinecap: 'butt', strokeLinejoin: 'round' }),
+      element('path', { d: lowerMark, stroke: '#18c7e6', strokeWidth: 8, strokeLinecap: 'butt', strokeLinejoin: 'round' }),
+      element('path', { d: 'M46 4 L62 10 L46 17 Z', fill: '#d8eaff' }),
+      element('path', { d: 'M47 4 L43 1 M53 5 L58 0 M57 9 L63 8 M52 15 L56 19', stroke: '#f5a623', strokeWidth: 1.5, strokeLinecap: 'round' }),
+      element('circle', { cx: 49, cy: 10, r: 3.8, fill: '#ff9819' }))
+    }
+    function SimflowName() {
+      return element('span', { className: 'cae-brand-name' }, 'SIMFLOW')
+    }
     const fields = [
       { id: 'hyperworksHome', label: 'HyperWorks 安装目录', kind: 'directory', placeholder: 'C:\\Altair\\2023', hint: 'HyperMesh、HyperView 等工具共用的 Altair 安装根目录。' },
       { id: 'hmbatch', label: 'HyperMesh 批处理程序', kind: 'file', placeholder: 'C:\\Altair\\2023\\hwdesktop\\hw\\bin\\win64\\hmbatch.exe', hint: '用于几何导入、模型分区和网格划分。' },
@@ -9,7 +27,6 @@ window.__ModuleLoader__.load({
       { id: 'lsdyna', label: 'LS-DYNA 求解器', kind: 'file', placeholder: 'C:\\LSTC\\lsdyna.exe', hint: '选择当前机器安装的 LS-DYNA 可执行文件。' },
       { id: 'workdir', label: '仿真工作目录', kind: 'directory', placeholder: 'D:\\cae_projects\\airbag', hint: '存放几何、网格、求解结果和报告的默认目录。' },
     ]
-    const element = createElement
     let requestedSimulationField = ''
     const focusSimulationField = () => {
       if (!requestedSimulationField) return
@@ -46,7 +63,7 @@ window.__ModuleLoader__.load({
         element('h2', { id: 'cae-cache-title' }, '缓存'),
         element('p', { className: 'cae-settings-intro' }, '设置入口缺失或界面显示异常时，可清除缓存并重新加载界面。'),
         element('p', { className: 'cae-settings-note' }, '已保存的模型配置、仿真软件设置、对话记录和文件会保留。刷新会丢失未保存的输入，请先保存需要的内容。'),
-        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中清除缓存。') :
+        !api ? element('p', { role: 'status' }, '请在 SIMFLOW 桌面应用中清除缓存。') :
           element('div', { className: 'cae-settings-actions' },
             element('button', { type: 'button', disabled: busy, onClick: () => void clearCache() }, busy ? '正在清除…' : '清除缓存并刷新'),
           ),
@@ -188,7 +205,7 @@ window.__ModuleLoader__.load({
       return element('section', { className: 'cae-simulation-settings', 'aria-labelledby': 'cae-models-title' },
         element('h2', { id: 'cae-models-title' }, '模型'),
         element('p', { className: 'cae-settings-intro' }, '获取当前接口的模型列表，点击标签选择要使用的模型，再选择默认模型。保存后可在对话中切换。'),
-        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中配置模型。如果已在桌面应用中，请通过“视图 → 清除缓存并刷新”恢复后重试。') :
+        !api ? element('p', { role: 'status' }, '请在 SIMFLOW 桌面应用中配置模型。如果已在桌面应用中，请通过“视图 → 清除缓存并刷新”恢复后重试。') :
           !values ? element('p', { role: failed ? 'alert' : 'status' }, message || '正在读取模型配置…') :
             element('form', { onSubmit: event => {
               event.preventDefault()
@@ -363,7 +380,7 @@ window.__ModuleLoader__.load({
         element('h2', { id: 'cae-simulation-title' }, '仿真软件'),
         element('p', { className: 'cae-settings-intro' }, '选择求解位置和接入方式，配置仿真软件与工作目录，保存后自动重启后台服务。'),
         element('p', { className: 'cae-settings-note' }, '仅使用助手时，仿真软件路径可以留空。使用服务端求解时，本机无需安装求解器；几何处理和后处理仍使用下方配置的软件。'),
-        !api ? element('p', { role: 'status' }, '请在 CAE Agent 桌面应用中打开“设置 → 仿真软件”配置本机路径。') :
+        !api ? element('p', { role: 'status' }, '请在 SIMFLOW 桌面应用中打开“设置 → 仿真软件”配置本机路径。') :
           !values ? element('p', { role: 'status' }, message || '正在读取配置…') :
             element('form', {
               onSubmit: event => {
@@ -446,6 +463,7 @@ window.__ModuleLoader__.load({
     }
 
     const css = `
+      .cae-brand-name { color: inherit; letter-spacing: 0; font-size: 16px; font-weight: 650; }
       .cae-simulation-settings { max-width: 760px; color: var(--dsw-alias-label-primary); }
       .cae-simulation-settings h2 { margin: 0 0 10px; font-size: 18px; font-weight: 600; }
       .cae-settings-intro, .cae-settings-note { font-size: 13px; line-height: 1.7; }
@@ -512,6 +530,26 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'conversation'],
       apply(ctx) {
+        ctx.slots.inject('sidebar.brand.mark', () => ctx.slots.register({
+          name: 'sidebar.brand.mark',
+        }, SimflowMark))
+        ctx.slots.inject('sidebar.brand.name', () => ctx.slots.register({
+          name: 'sidebar.brand.name',
+        }, SimflowName))
+        ctx.slots.inject('conversation.hero.brand.mark', () => ctx.slots.register({
+          name: 'conversation.hero.brand.mark',
+        }, SimflowMark))
+        ctx.effect(() => {
+          const title = document.title
+          const icons = [...document.querySelectorAll('link[rel~="icon"]')]
+          const iconHrefs = icons.map(icon => icon.href)
+          document.title = 'SIMFLOW'
+          for (const icon of icons) icon.href = faviconUrl
+          return () => {
+            if (document.title === 'SIMFLOW') document.title = title
+            icons.forEach((icon, index) => { icon.href = iconHrefs[index] })
+          }
+        })
         if (window.addEventListener) ctx.effect(() => {
           const openSimulation = event => {
             requestedSimulationField = event.detail?.field || 'hmbatch'

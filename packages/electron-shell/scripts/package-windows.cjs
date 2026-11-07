@@ -274,7 +274,7 @@ async function main() {
     targets: Platform.WINDOWS.createTarget(targets, Arch.x64),
     projectDir: shellRoot,
     config: {
-      appId: 'com.cae.agent', productName: 'CAE Agent',
+      appId: 'com.cae.agent', productName: 'SIMFLOW',
       electronVersion: manifest.devDependencies.electron,
       directories: { app: appRoot, output: outputRoot },
       files: ['dist/**/*', 'resources/**/*'],
@@ -284,7 +284,7 @@ async function main() {
       win: {
         target: targets, icon: join(shellRoot, 'resources', 'icon.ico'),
         signAndEditExecutable: false,
-        artifactName: 'CAE-Agent-${version}-Windows-x64.${ext}',
+        artifactName: 'SIMFLOW-${version}-Windows-x64.${ext}',
       },
     },
   })
