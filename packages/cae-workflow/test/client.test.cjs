@@ -8,15 +8,18 @@ const { STAGES } = require('../state.cjs')
 async function desktop(t, configuration = null) {
   let plugin
   const entries = new Map(), drafts = new Map(), events = [], sent = [], submitted = [], cleanups = []
+  const tabs = [], navigation = [], opened = [], previews = []
   const hookState = new Map(), windowListeners = new Map(), sessionListeners = new Set()
   const sessionState = { running: false }
   const session = { getSnapshot: () => sessionState, subscribe: listener => { sessionListeners.add(listener); return () => sessionListeners.delete(listener) } }
   let owner = '__root__', hookIndex = 0
   const state = { id: 'workflow-id', current: 0, status: 'parameters', revision: 1, parameters: { import: { project_name: 'Current project', igs_file: '/project/current.igs', workdir: '/project' } }, stages: STAGES.map(stage => ({ id: stage.id, status: 'pending', artifacts: [] })), traces: [] }
+  const states = new Map([['session', state]])
   const api = {
-    load: async () => ({ state: structuredClone(state), stages: STAGES, configuration, workdir: '/project' }),
+    load: async (sessionId = 'session') => ({ state: structuredClone(states.get(sessionId) || null), stages: STAGES, configuration, workdir: '/project' }),
     submit: async (...args) => { submitted.push(args); state.status = configuration ? 'blocked' : 'ready'; state.revision++; return { ...state, configuration } },
-    preview: async () => 'data:image/png;base64,cHJldmlldw==',
+    open: async (...args) => { opened.push(args) },
+    preview: async (...args) => { previews.push(args); return 'data:image/png;base64,cHJldmlldw==' },
   }
   const effect = callback => {
     let dispose = callback()
@@ -70,17 +73,25 @@ async function desktop(t, configuration = null) {
   })
   plugin.apply({
     effect,
-    slots: { inject: (_name, register) => register(), register: (options, component) => { entries.set(options.name, component); return () => entries.delete(options.name) } },
-    sidebarRight: { openTab: () => {} }, sidebarRightTabs: { register: definition => { assert.equal(definition.kind, 'cae-workflow'); return () => {} } },
+    slots: { inject: (_name, register) => register(), register: (options, component) => { const key = options.key || options.name; entries.set(key, component); return () => entries.delete(key) } },
+    sidebarRight: { openTab: kind => navigation.push(kind) }, sidebarRightTabs: { register: definition => { tabs.push(definition); return () => {} } },
     sessions: { binding: () => ({ session }), scope: () => ({ get: service => { assert.equal(service, 'conversation'); assert.ok(plugin.inject.includes(service)); return conversation } }) },
   })
   t.after(() => cleanups.reverse().forEach(dispose => dispose()))
-  const panel = entries.get('sidebar.right.pane.tab')
+  const panel = entries.get('@cae/workflow')
   render(panel, { sessionId: 'session' })
   await new Promise(resolve => setImmediate(resolve))
   const tree = render(panel, { sessionId: 'session' })
   const poll = async () => { intervals.forEach(callback => callback()); await new Promise(resolve => setImmediate(resolve)) }
   const renderPanel = () => render(panel, { sessionId: 'session' })
+  const renderResults = async (sessionId = 'session') => {
+    const component = entries.get('@cae/workflow-results')
+    render(component, { sessionId })
+    await new Promise(resolve => setImmediate(resolve))
+    const tree = render(component, { sessionId })
+    const files = find(tree, node => node.type?.name === 'ResultFiles')
+    return files ? render(files.type, files.props) : tree
+  }
   const renderForm = (remount = false) => {
     const parameters = find(renderPanel(), node => node.type?.name === 'Parameters')
     if (parameters && remount) {
@@ -89,7 +100,7 @@ async function desktop(t, configuration = null) {
     }
     return parameters && render(parameters.type, parameters.props)
   }
-  return { tree, sent, submitted, events, state, drafts, entries, render, windowListeners, api, conversation, setRunning, poll, renderPanel, renderForm }
+  return { tree, sent, submitted, events, state, states, drafts, entries, tabs, navigation, opened, previews, render, windowListeners, api, conversation, setRunning, poll, renderPanel, renderForm, renderResults }
 }
 
 function find(tree, predicate) {
@@ -97,6 +108,11 @@ function find(tree, predicate) {
   if (predicate(tree)) return tree
   for (const child of (Array.isArray(tree) ? tree : tree.children || [])) { const match = find(child, predicate); if (match) return match }
   return null
+}
+
+function findAll(tree, predicate) {
+  if (!tree || typeof tree !== 'object') return []
+  return [...(predicate(tree) ? [tree] : []), ...(Array.isArray(tree) ? tree : tree.children || []).flatMap(child => findAll(child, predicate))]
 }
 
 test('native workflow form sends confirmed parameters to its own conversation with all services declared', async t => {
@@ -226,7 +242,7 @@ test('partition previews open an accessible lightbox and close with Escape or th
   const ui = await desktop(t)
   ui.state.stages[0].artifacts = [{ role: 'preview', path: '/project/partition.png' }]
   await ui.poll()
-  const panel = ui.entries.get('sidebar.right.pane.tab')
+  const panel = ui.entries.get('@cae/workflow')
   const tree = ui.render(panel, { sessionId: 'session' })
   const artifactsNode = find(tree, node => node.type?.name === 'Artifacts')
   assert.ok(artifactsNode)
@@ -252,4 +268,118 @@ test('partition previews open an accessible lightbox and close with Escape or th
   dialog = find(expanded, node => node.props?.role === 'dialog')
   find(dialog, node => node.props?.['aria-label'] === '关闭大图').props.onClick()
   assert.equal(find(ui.render(artifactsNode.type, props), node => node.props?.role === 'dialog'), null)
+})
+
+test('result files have native sidebar, workflow and conversation entries, including after completion', async t => {
+  const ui = await desktop(t)
+  assert.deepEqual(ui.tabs.map(tab => tab.kind), ['cae-workflow', 'cae-results'])
+  assert.equal(ui.tabs[1].title(), '结果文件')
+  find(ui.renderPanel(), node => node.props?.className === 'cae-flow-files-entry').props.onClick()
+  assert.equal(ui.navigation.at(-1), 'cae-results')
+
+  ui.state.status = 'completed'
+  ui.state.stages[0].artifacts = [{ role: 'geometry', path: 'C:\\project\\geometry.hm', remote: false }]
+  await ui.poll()
+  const header = ui.render(ui.entries.get('conversation.session.header.utilities'), { sessionId: 'session' })
+  const entry = find(header, node => node.type === 'button' && node.children[0] === '结果文件 · 1')
+  assert.ok(entry)
+  entry.props.onClick()
+  assert.equal(ui.navigation.at(-1), 'cae-results')
+  const panel = ui.render(ui.entries.get('@cae/workflow-results'), { sessionId: 'session' })
+  find(panel, node => node.props?.className === 'cae-flow-results-back').props.onClick()
+  assert.equal(ui.navigation.at(-1), 'cae-workflow')
+})
+
+test('results accumulate across stages, deduplicate paths, filter and update with workflow polling', async t => {
+  const ui = await desktop(t)
+  ui.state.current = 3
+  ui.state.status = 'running'
+  ui.state.stages[0].artifacts = [{ role: 'geometry', path: 'C:\\project\\geometry.hm', remote: false }]
+  ui.state.stages[1].artifacts = [
+    { role: 'partitioned_model', path: 'C:\\project\\partition.hm', remote: false },
+    { role: 'preview', path: 'C:\\project\\partition.png', remote: false },
+  ]
+  ui.state.stages[2].artifacts = [
+    { role: 'mesh_model', path: 'C:\\project\\partition.hm', remote: false },
+    { role: 'curtain_k', path: '/project/curtain.k', remote: false },
+  ]
+  await ui.poll()
+  let results = await ui.renderResults()
+  let rows = findAll(results, node => node.props?.className === 'cae-flow-file')
+  assert.equal(rows.length, 4)
+  const shared = rows.find(node => JSON.stringify(node).includes('partition.hm'))
+  assert.match(JSON.stringify(shared), /四分区模型 \/ 网格模型/)
+  assert.ok(JSON.stringify(shared).includes(STAGES[1].title))
+  assert.ok(JSON.stringify(shared).includes(STAGES[2].title))
+  assert.ok(find(rows[0], node => node.type === 'strong' && node.children[0] === 'geometry.hm'), 'Windows file names do not include the directory')
+
+  find(results, node => node.props?.['aria-label'] === '按阶段筛选结果文件').props.onChange({ target: { value: STAGES[2].id } })
+  results = await ui.renderResults()
+  assert.equal(findAll(results, node => node.props?.className === 'cae-flow-file').length, 2)
+  find(results, node => node.props?.['aria-label'] === '搜索结果文件').props.onChange({ target: { value: 'CURTAIN.K' } })
+  results = await ui.renderResults()
+  assert.equal(findAll(results, node => node.props?.className === 'cae-flow-file').length, 1)
+
+  find(results, node => node.props?.['aria-label'] === '搜索结果文件').props.onChange({ target: { value: 'missing-file' } })
+  results = await ui.renderResults()
+  assert.match(JSON.stringify(results), /没有匹配的文件/)
+  find(results, node => node.type === 'button' && node.children[0] === '清除筛选').props.onClick()
+  ui.state.stages[3].artifacts = [{ role: 'd3plot', path: '/server/results/d3plot', remote: true }]
+  ui.state.current = 4
+  await ui.poll()
+  results = await ui.renderResults()
+  rows = findAll(results, node => node.props?.className === 'cae-flow-file')
+  assert.equal(rows.length, 5)
+  const remote = rows.find(node => JSON.stringify(node).includes('/server/results/d3plot'))
+  assert.ok(find(remote, node => node.props?.className === 'cae-flow-file-type' && node.children[0] === 'D3PLOT'))
+  assert.match(JSON.stringify(remote), /服务端文件，请同步到本机后查看/)
+  assert.equal(find(remote, node => node.type === 'button'), null)
+})
+
+test('results open local files and preview images with recoverable file errors', async t => {
+  const ui = await desktop(t)
+  ui.state.stages[0].artifacts = [{ role: 'preview', path: '/project/partition.png', remote: false }]
+  await ui.poll()
+  let results = await ui.renderResults()
+  find(results, node => node.props?.['aria-label'] === '打开 partition.png').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.deepEqual(Array.from(ui.opened[0]), ['session', '/project/partition.png'])
+
+  results = await ui.renderResults()
+  find(results, node => node.props?.['aria-label'] === '预览 partition.png').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  results = await ui.renderResults()
+  assert.deepEqual(Array.from(ui.previews[0]), ['session', '/project/partition.png'])
+  const dialog = find(results, node => node.props?.role === 'dialog')
+  assert.equal(dialog.props['aria-label'], 'partition.png')
+  assert.equal(find(dialog, node => node.type === 'img').props.src, 'data:image/png;base64,cHJldmlldw==')
+  ui.windowListeners.get('keydown')({ key: 'Escape' })
+  assert.equal(find(await ui.renderResults(), node => node.props?.role === 'dialog'), null)
+
+  ui.api.open = async () => { throw new Error('文件已移动') }
+  results = await ui.renderResults()
+  find(results, node => node.props?.['aria-label'] === '打开 partition.png').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  results = await ui.renderResults()
+  assert.match(JSON.stringify(find(results, node => node.props?.role === 'alert')), /partition.png：文件已移动/)
+  ui.api.open = async () => {}
+  find(results, node => node.props?.['aria-label'] === '打开 partition.png').props.onClick()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(find(await ui.renderResults(), node => node.props?.role === 'alert'), null)
+})
+
+test('results show empty states and do not expose the previous conversation while switching sessions', async t => {
+  const ui = await desktop(t)
+  assert.match(JSON.stringify(await ui.renderResults()), /暂无结果文件/)
+  ui.state.stages[0].artifacts = [{ role: 'geometry', path: '/project/private.hm', remote: false }]
+  await ui.poll()
+  assert.match(JSON.stringify(await ui.renderResults()), /private.hm/)
+  const resultsPanel = ui.entries.get('@cae/workflow-results')
+  const switching = ui.render(resultsPanel, { sessionId: 'other-session' })
+  assert.match(JSON.stringify(switching), /正在读取结果文件/)
+  assert.doesNotMatch(JSON.stringify(switching), /Current project|private.hm/)
+  const empty = await ui.renderResults('other-session')
+  assert.match(JSON.stringify(empty), /当前对话还没有仿真工作流/)
+  assert.doesNotMatch(JSON.stringify(empty), /private.hm/)
+  assert.match(JSON.stringify(await ui.renderResults()), /private.hm/)
 })

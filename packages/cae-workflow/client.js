@@ -54,20 +54,21 @@ window.__ModuleLoader__.load({
     }
 
     function useWorkflow(sessionId) {
-      const [view, setView] = useState(() => snapshot(channels.get(sessionId)))
+      const [current, setCurrent] = useState(() => ({ sessionId, view: snapshot(channels.get(sessionId)) }))
       useEffect(() => {
-        setView(snapshot(channels.get(sessionId)))
+        const update = view => setCurrent({ sessionId, view })
+        update(snapshot(channels.get(sessionId)))
         if (!api || !sessionId) return
         const channel = channelFor(sessionId)
-        channel.listeners.add(setView)
+        channel.listeners.add(update)
         void refresh(sessionId)
         if (!channel.timer) channel.timer = window.setInterval(() => void refresh(sessionId), 1500)
         return () => {
-          channel.listeners.delete(setView)
+          channel.listeners.delete(update)
           if (!channel.listeners.size) { window.clearInterval(channel.timer); channel.timer = null }
         }
       }, [sessionId])
-      return view
+      return current.sessionId === sessionId ? current.view : snapshot(channels.get(sessionId))
     }
 
     function stageCard(step, position, view, selected, select) {
@@ -109,8 +110,7 @@ window.__ModuleLoader__.load({
       return source ? h('button', { type: 'button', className: 'cae-flow-preview-trigger', onClick: () => onOpen(source, roles[artifact.role] || artifact.role), 'aria-label': `放大查看${roles[artifact.role] || artifact.role}` }, h('img', { className: 'cae-flow-preview', src: source, alt: roles[artifact.role] || artifact.role })) : null
     }
 
-    function Artifacts({ sessionId, artifacts = [] }) {
-      const [error, setError] = useState('')
+    function useLightbox() {
       const [expanded, setExpanded] = useState(null)
       useEffect(() => {
         if (!expanded) return
@@ -118,6 +118,15 @@ window.__ModuleLoader__.load({
         window.addEventListener('keydown', closeOnEscape)
         return () => window.removeEventListener('keydown', closeOnEscape)
       }, [expanded])
+      return [setExpanded, expanded && h('div', { className: 'cae-flow-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': expanded.label, onClick: event => { if (event.target === event.currentTarget) setExpanded(null) } },
+        h('button', { type: 'button', className: 'cae-flow-lightbox-close', onClick: () => setExpanded(null), 'aria-label': '关闭大图', title: '关闭（Esc）' }, '×'),
+        h('img', { src: expanded.src, alt: expanded.label }),
+      )]
+    }
+
+    function Artifacts({ sessionId, artifacts = [] }) {
+      const [error, setError] = useState('')
+      const [setExpanded, lightbox] = useLightbox()
       return h('div', { className: 'cae-flow-artifacts' },
         ...artifacts.filter(artifact => ['preview', 'animation'].includes(artifact.role)).map(artifact => h(Preview, { key: artifact.path, sessionId, artifact, onOpen: (src, label) => setExpanded({ src, label }) })),
         ...artifacts.map(artifact => h('div', { key: artifact.role + artifact.path, className: 'cae-flow-artifact' },
@@ -125,11 +134,85 @@ window.__ModuleLoader__.load({
           h('code', { title: artifact.path }, artifact.path),
           artifact.remote ? h('small', null, '服务端文件，请同步后查看') : h('button', { type: 'button', onClick: () => api.open(sessionId, artifact.path).catch(error => setError(error.message)) }, '打开'),
         )),
-        expanded && h('div', { className: 'cae-flow-lightbox', role: 'dialog', 'aria-modal': 'true', 'aria-label': expanded.label, onClick: event => { if (event.target === event.currentTarget) setExpanded(null) } },
-          h('button', { type: 'button', className: 'cae-flow-lightbox-close', onClick: () => setExpanded(null), 'aria-label': '关闭大图', title: '关闭（Esc）' }, '×'),
-          h('img', { src: expanded.src, alt: expanded.label }),
-        ),
+        lightbox,
         error && h('p', { role: 'alert' }, error),
+      )
+    }
+
+    function outputFiles(view) {
+      const files = new Map()
+      for (const stage of view?.state?.stages || []) {
+        const title = view.stages.find(item => item.id === stage.id)?.title || stage.id
+        for (const artifact of stage.artifacts) {
+          const key = `${artifact.remote ? 'remote' : 'local'}:${artifact.path}`
+          let file = files.get(key)
+          if (!file) {
+            const name = artifact.path.split(/[\\/]/).pop() || artifact.path
+            const type = /^d3plot\d*$/i.test(name) ? 'D3PLOT' : (name.match(/\.([^.]+)$/)?.[1] || 'FILE').toUpperCase()
+            file = { key, name, type, path: artifact.path, remote: artifact.remote, sources: [], roles: [] }
+            files.set(key, file)
+          }
+          if (!file.sources.some(source => source.id === stage.id)) file.sources.push({ id: stage.id, title })
+          const role = roles[artifact.role] || artifact.role
+          if (!file.roles.includes(role)) file.roles.push(role)
+        }
+      }
+      return [...files.values()]
+    }
+
+    function ResultFiles({ sessionId, view }) {
+      const [query, setQuery] = useState('')
+      const [stageId, setStageId] = useState('all')
+      const [busy, setBusy] = useState('')
+      const [error, setError] = useState('')
+      const [setExpanded, lightbox] = useLightbox()
+      const files = outputFiles(view)
+      const search = query.trim().toLowerCase()
+      const filtered = files.filter(file => (stageId === 'all' || file.sources.some(source => source.id === stageId)) && [file.name, file.path, ...file.roles, ...file.sources.map(source => source.title)].join(' ').toLowerCase().includes(search))
+
+      async function act(file, preview) {
+        if (busy) return
+        setBusy(`${preview ? 'preview' : 'open'}:${file.key}`)
+        setError('')
+        try {
+          if (preview) setExpanded({ src: await api.preview(sessionId, file.path), label: file.name })
+          else await api.open(sessionId, file.path)
+        } catch (error) { setError(`${file.name}：${error.message || '无法读取文件，请检查文件是否仍在原路径。'}`) }
+        finally { setBusy('') }
+      }
+
+      return h('div', { className: 'cae-flow-results' },
+        files.length > 0 && h('div', { className: 'cae-flow-file-filters' },
+          h('input', { type: 'search', value: query, placeholder: '搜索文件名、路径或用途', 'aria-label': '搜索结果文件', onChange: event => setQuery(event.target.value) }),
+          h('select', { value: stageId, 'aria-label': '按阶段筛选结果文件', onChange: event => setStageId(event.target.value) },
+            h('option', { value: 'all' }, '全部阶段'),
+            ...view.stages.filter(stage => files.some(file => file.sources.some(source => source.id === stage.id))).map(stage => h('option', { key: stage.id, value: stage.id }, stage.title)),
+          ),
+        ),
+        h('div', { className: 'cae-flow-file-count', role: 'status', 'aria-live': 'polite' }, search || stageId !== 'all' ? `显示 ${filtered.length} / ${files.length} 个文件` : `共 ${files.length} 个文件`, files.length > 0 && h('span', null, '随工作流自动更新')),
+        !files.length ? h('div', { className: 'cae-flow-file-empty' },
+          h('strong', null, '暂无结果文件'),
+          h('p', null, view.state ? '各阶段产物通过验证后，会自动汇总到这里。包括模型、网格、求解结果、预览和报告。' : '当前对话还没有仿真工作流。开始工作流后，可在这里查看各阶段生成的文件。'),
+        ) : !filtered.length ? h('div', { className: 'cae-flow-file-empty' },
+          h('strong', null, '没有匹配的文件'),
+          h('p', null, '试试其他关键词，或查看全部阶段。'),
+          h('button', { type: 'button', onClick: () => { setQuery(''); setStageId('all') } }, '清除筛选'),
+        ) : h('ul', { className: 'cae-flow-file-list', 'aria-label': '工作流结果文件' }, ...filtered.map(file => h('li', { key: file.key, className: 'cae-flow-file' },
+          h('span', { className: 'cae-flow-file-type', 'data-type': file.type.toLowerCase(), 'aria-hidden': true }, file.type.slice(0, 6)),
+          h('div', { className: 'cae-flow-file-info' },
+            h('strong', { title: file.name }, file.name),
+            h('span', { className: 'cae-flow-file-role' }, file.roles.join(' / ')),
+            h('small', null, file.sources.map(source => source.title).join(' / ')),
+            h('code', { title: file.path }, file.path),
+            file.remote && h('small', { className: 'cae-flow-file-remote' }, '服务端文件，请同步到本机后查看'),
+          ),
+          !file.remote && h('div', { className: 'cae-flow-file-actions' },
+            /\.(png|jpe?g|gif|webp)$/i.test(file.path) && h('button', { type: 'button', disabled: Boolean(busy), 'aria-label': `预览 ${file.name}`, onClick: () => void act(file, true) }, busy === `preview:${file.key}` ? '读取中…' : '预览'),
+            h('button', { type: 'button', disabled: Boolean(busy), 'aria-label': `打开 ${file.name}`, onClick: () => void act(file, false) }, busy === `open:${file.key}` ? '打开中…' : '打开'),
+          ),
+        ))),
+        error && h('p', { role: 'alert', className: 'cae-flow-error' }, error),
+        lightbox,
       )
     }
 
@@ -255,6 +338,35 @@ window.__ModuleLoader__.load({
       .cae-flow .cae-flow-primary { background: #2563eb; color: #fff; border-color: #2563eb; }
       .cae-flow .cae-flow-primary:enabled:hover { background: #1d4ed8; border-color: #1d4ed8; }
       .cae-flow .cae-flow-primary:enabled:active { background: #1e40af; border-color: #1e40af; }
+      .cae-flow .cae-flow-files-entry { display: flex; align-items: center; gap: 12px; width: 100%; margin: 18px 0 0; padding: 12px; text-align: left; border-radius: 10px; background: color-mix(in srgb, var(--cae-flow-accent) 4%, transparent); }
+      .cae-flow-files-entry svg { flex-shrink: 0; width: 23px; height: 23px; color: var(--cae-flow-accent); }
+      .cae-flow-files-entry > span:first-of-type { flex: 1; }
+      .cae-flow-files-entry strong, .cae-flow-files-entry small { display: block; }
+      .cae-flow-files-entry strong { font-weight: 600; }
+      .cae-flow-file-badge { padding: 1px 8px; color: var(--cae-flow-accent); background: color-mix(in srgb, var(--cae-flow-accent) 10%, transparent); border-radius: 5px; font-variant-numeric: tabular-nums; }
+      .cae-flow-results-back { margin-bottom: 18px; }
+      .cae-flow-file-filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 12px; }
+      .cae-flow-file-filters input { flex: 1 1 180px; }
+      .cae-flow .cae-flow-file-filters select { flex: 1 1 120px; width: auto; }
+      .cae-flow-file-count { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 18px 0 10px; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+      .cae-flow-file-count > span { color: var(--dsw-alias-label-tertiary, #81858c); }
+      .cae-flow-file-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--dsw-alias-border-l2); }
+      .cae-flow-file { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--dsw-alias-border-l2); }
+      .cae-flow-file-type { --cae-file-tone: var(--cae-flow-accent); flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 48px; height: 44px; border: 1px solid color-mix(in srgb, var(--cae-file-tone) 20%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--cae-file-tone) 6%, transparent); color: var(--cae-file-tone); font-size: 10px; font-weight: 650; letter-spacing: .2px; }
+      .cae-flow-file-type:is([data-type=hm], [data-type=k], [data-type=key]) { --cae-file-tone: var(--cae-flow-success); }
+      .cae-flow-file-type[data-type=d3plot] { --cae-file-tone: var(--cae-flow-warning); }
+      .cae-flow-file-info { flex: 1 1 180px; min-width: 0; }
+      .cae-flow-file-info > :is(strong, span, small, code) { display: block; }
+      .cae-flow-file-info strong { font-size: 13px; font-weight: 600; line-height: 1.5; }
+      .cae-flow-file-role { font-size: 12px; margin: 3px 0 1px; }
+      .cae-flow-file-info code { font-size: 11px; color: var(--dsw-alias-label-secondary); word-break: break-all; margin-top: 5px; }
+      .cae-flow-file-info .cae-flow-file-remote { color: var(--cae-flow-warning); margin-top: 6px; }
+      .cae-flow-file-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+      .cae-flow-file-actions button { font-size: 12px; padding: 4px 9px; }
+      .cae-flow-file-empty { padding: 28px 16px; margin: 10px 0; text-align: center; border: 1px dashed var(--dsw-alias-border-l2); border-radius: 10px; background: color-mix(in srgb, var(--cae-flow-accent) 2%, transparent); }
+      .cae-flow-file-empty strong { font-weight: 600; }
+      .cae-flow-file-empty p { color: var(--dsw-alias-label-secondary); margin: 8px 0; font-size: 12px; }
+      .cae-flow-entries { display: inline-flex; flex-wrap: wrap; gap: 6px; }
       .cae-flow-steps { list-style: none; padding: 0; margin: 20px 0 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 112px), 1fr)); gap: 8px; }
       .cae-flow-steps > li { min-width: 0; }
       .cae-flow .cae-flow-step { --cae-step-tone: var(--cae-flow-accent); --cae-step-tint: 4%; --cae-step-surface: linear-gradient(145deg, color-mix(in srgb, var(--cae-step-tone) var(--cae-step-tint), transparent), transparent); position: relative; isolation: isolate; display: flex; flex-direction: column; align-items: flex-start; gap: 9px; width: 100%; height: 100%; min-height: 124px; padding: 12px; overflow: hidden; box-sizing: border-box; border-radius: 11px; border-color: color-mix(in srgb, var(--cae-step-tone) 22%, transparent); background: var(--cae-step-surface); text-align: left; transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease; }
@@ -319,6 +431,7 @@ window.__ModuleLoader__.load({
       inject: ['slots', 'sessions', 'conversation', 'sidebarRight', 'sidebarRightTabs'],
       apply(ctx) {
         const open = () => ctx.sidebarRight.openTab('cae-workflow')
+        const openResults = () => ctx.sidebarRight.openTab('cae-results')
         const openSettings = field => window.dispatchEvent(new CustomEvent('cae:open-simulation-settings', { detail: { field } }))
         const sessionFor = sessionId => ctx.sessions.binding(sessionId)?.session
 
@@ -393,6 +506,12 @@ window.__ModuleLoader__.load({
           return h('section', { className: 'cae-flow', 'aria-label': '气帘仿真工作流' },
             h('h2', null, state.parameters.import?.project_name || '气帘仿真工作流'),
             h('small', { role: 'status' }, `第 ${state.current + 1} / ${view.stages.length} 阶段 · ${view.starting ? '正在启动' : labels[state.status] || state.status}`),
+            h('button', { type: 'button', className: 'cae-flow-files-entry', onClick: openResults, 'aria-label': `查看结果文件，共 ${outputFiles(view).length} 个` },
+              h('svg', { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true }, h('path', { d: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3V7Zm0 4h18', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })),
+              h('span', null, h('strong', null, '结果文件'), h('small', null, '查看各阶段生成的模型、求解结果和报告')),
+              h('span', { className: 'cae-flow-file-badge' }, outputFiles(view).length),
+              h('span', { 'aria-hidden': true }, '→'),
+            ),
             h('ol', { className: 'cae-flow-steps', 'aria-label': '仿真阶段' }, ...view.stages.map((step, i) => stageCard(step, i, view, i === index, setSelected))),
             h('h3', null, stage.title),
             index === state.current && ['parameters', 'ready', 'blocked', 'error', 'interrupted'].includes(state.status) && h(Parameters, { key: `${state.id}:${stage.id}:${state.stages[index].attempts || 0}`, sessionId, view, stage, start, running, openSettings }),
@@ -406,9 +525,25 @@ window.__ModuleLoader__.load({
           )
         }
 
+        function ResultsPanel({ sessionId }) {
+          const view = useWorkflow(sessionId)
+          return h('section', { className: 'cae-flow', 'aria-label': '工作流结果文件' },
+            h('button', { type: 'button', className: 'cae-flow-results-back', onClick: open }, '← 返回工作流'),
+            h('h2', null, '结果文件'),
+            view?.state && h('small', null, view.state.parameters.import?.project_name || '气帘仿真工作流'),
+            !api ? h('p', null, '请在 CAE Agent 桌面应用中查看工作流结果文件。')
+              : !view ? h('p', { role: 'status' }, '正在读取结果文件…')
+                : h(ResultFiles, { key: `${sessionId}:${view.state?.id || 'empty'}`, sessionId, view }),
+            view?.error && h('p', { role: 'alert', className: 'cae-flow-error' }, view.error),
+          )
+        }
+
         function WorkflowEntry({ sessionId }) {
           const view = useWorkflow(sessionId)
-          return h('button', { type: 'button', className: 'cae-flow-entry', onClick: open, title: '打开当前对话的仿真工作流' }, view?.state ? `仿真 · ${view.starting ? '正在启动' : labels[view.state.status] || '进行中'}` : '仿真工作流')
+          return h('span', { className: 'cae-flow-entries' },
+            h('button', { type: 'button', className: 'cae-flow-entry', onClick: open, title: '打开当前对话的仿真工作流' }, view?.state ? `仿真 · ${view.starting ? '正在启动' : labels[view.state.status] || '进行中'}` : '仿真工作流'),
+            view?.state && h('button', { type: 'button', className: 'cae-flow-entry', onClick: openResults, title: '查看当前工作流各阶段的结果文件' }, `结果文件 · ${outputFiles(view).length}`),
+          )
         }
         function WorkflowDock({ sessionId }) {
           const view = useWorkflow(sessionId)
@@ -418,8 +553,9 @@ window.__ModuleLoader__.load({
         }
         ctx.effect(() => { const style = document.createElement('style'); style.textContent = css; document.head.appendChild(style); return () => style.remove() })
         ctx.effect(() => ctx.sidebarRightTabs.register({ id: '@cae/workflow', kind: 'cae-workflow', keepMounted: true, title: () => '仿真工作流', guide: [{ id: 'start', order: 2, title: () => '气帘仿真工作流', description: () => '导入几何、确认参数并逐步执行仿真' }] }))
-        for (const [name, component] of [['sidebar.right.pane.tab', WorkflowPanel], ['conversation.session.header.utilities', WorkflowEntry], ['conversation.input.dock', WorkflowDock]]) {
-          ctx.slots.inject(name, () => ctx.slots.register({ name, ...(name === 'sidebar.right.pane.tab' ? { key: '@cae/workflow' } : { id: '@cae/workflow', order: 10 }) }, component))
+        ctx.effect(() => ctx.sidebarRightTabs.register({ id: '@cae/workflow-results', kind: 'cae-results', title: () => '结果文件', guide: [{ id: 'results', order: 3, title: () => 'CAE 结果文件', description: () => '查看各阶段生成的模型、求解结果和报告' }] }))
+        for (const [name, component, key = '@cae/workflow'] of [['sidebar.right.pane.tab', WorkflowPanel], ['sidebar.right.pane.tab', ResultsPanel, '@cae/workflow-results'], ['conversation.session.header.utilities', WorkflowEntry], ['conversation.input.dock', WorkflowDock]]) {
+          ctx.slots.inject(name, () => ctx.slots.register({ name, ...(name === 'sidebar.right.pane.tab' ? { key } : { id: key, order: 10 }) }, component))
         }
       },
     }
